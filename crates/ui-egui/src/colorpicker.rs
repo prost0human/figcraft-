@@ -3,7 +3,7 @@
 
 use egui::{Align2, Color32, CornerRadius, Id, Mesh, Pos2, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 use figcraft_color::{
-    Color, ColorStop, Gradient, GradientKind, Hsb, ImageFilters, ImageScaleMode, Paint, PaintKind, PatternAlign, PatternPaint, PatternTile,
+    Color, ColorMixer, ColorStop, Gradient, GradientKind, Hsb, ImageFilters, ImageScaleMode, Paint, PaintKind, PatternAlign, PatternPaint, PatternTile,
 };
 use figcraft_doc::{NodeId, NodeKind};
 use serde_json::json;
@@ -703,79 +703,7 @@ pub fn show(app: &mut FigApp, ctx: &egui::Context) {
                 }
             }
             if let PaintKind::Image(img) = &paint.kind {
-                let mut img = img.clone();
-                ui.horizontal(|ui| {
-                    ui.add_space(16.0);
-                    let resp = widgets::dropdown(ui, tr(&format!("{:?}", img.scale_mode)), 100.0, None);
-                    crate::right::menu_popup(&resp).show(|ui| {
-                        for (l, m) in [
-                            (tr("Fill"), ImageScaleMode::Fill),
-                            (tr("Fit"), ImageScaleMode::Fit),
-                            (tr("Crop"), ImageScaleMode::Crop),
-                            (tr("Tile"), ImageScaleMode::Tile),
-                        ] {
-                            if crate::right::menu_item(ui, l, "") {
-                                img.scale_mode = m;
-                                paint.kind = PaintKind::Image(img.clone());
-                                write(app, &target, &paint, false);
-                                ui.close();
-                            }
-                        }
-                    });
-                    if icons::button(ui, Icon::Rotate, 24.0, false, tr("Rotate 90°")).clicked() {
-                        img.rotation = (img.rotation + 1) % 4;
-                        paint.kind = PaintKind::Image(img.clone());
-                        write(app, &target, &paint, false);
-                    }
-                });
-                // The image's own colour profile (decoding converts it into the file's).
-                let source = app.session.doc().ok().and_then(|d| figcraft_render::images::profile_name(&img.image, d.images.get(&img.image)));
-                let source = match source.as_deref() {
-                    None => tr("Unknown — treated as sRGB"),
-                    Some("") => tr("Embedded profile"),
-                    Some(name) => name,
-                };
-                ui.horizontal(|ui| {
-                    ui.add_space(16.0);
-                    let text = trf("Color profile: {name}", &[("name", &source)]);
-                    ui.add(egui::Label::new(egui::RichText::new(text).font(regular(11.0)).color(t.text_secondary)).truncate());
-                });
-                image_presets(app, ui, &target, &mut paint, img.filters);
-                for (label, val) in [
-                    (tr_noop("Exposure"), img.filters.exposure),
-                    (tr_noop("Contrast"), img.filters.contrast),
-                    (tr_noop("Saturation"), img.filters.saturation),
-                    (tr_noop("Temperature"), img.filters.temperature),
-                    (tr_noop("Tint"), img.filters.tint),
-                    (tr_noop("Highlights"), img.filters.highlights),
-                    (tr_noop("Shadows"), img.filters.shadows),
-                ] {
-                    ui.horizontal(|ui| {
-                        ui.add_space(16.0);
-                        // Labels share a column so the sliders line up.
-                        let (lr, _) = ui.allocate_exact_size(vec2(72.0, 18.0), Sense::hover());
-                        ui.painter().text(lr.left_center(), Align2::LEFT_CENTER, tr(label), regular(11.0), t.text);
-                        let mut v = val;
-                        let r = ui.add(egui::Slider::new(&mut v, -1.0..=1.0).show_value(false));
-                        if r.changed() {
-                            let f = &mut img.filters;
-                            match label {
-                                "Exposure" => f.exposure = v,
-                                "Contrast" => f.contrast = v,
-                                "Saturation" => f.saturation = v,
-                                "Temperature" => f.temperature = v,
-                                "Tint" => f.tint = v,
-                                "Highlights" => f.highlights = v,
-                                _ => f.shadows = v,
-                            }
-                            paint.kind = PaintKind::Image(img.clone());
-                            write(app, &target, &paint, !r.drag_stopped());
-                        }
-                        if r.drag_stopped() {
-                            finish(app);
-                        }
-                    });
-                }
+                image_controls(app, ui, &target, &mut paint, img.clone(), &t);
             }
             if let PaintKind::Pattern(pt) = paint.kind.clone() {
                 pattern_controls(app, ui, &target, &mut paint, pt);
@@ -1144,6 +1072,552 @@ fn image_presets(app: &mut FigApp, ui: &mut Ui, target: &PickerTarget, paint: &m
             }
         },
         None => {}
+    }
+}
+
+fn lerp_color(a: Color32, b: Color32, t: f32) -> Color32 {
+    let t = t.clamp(0.0, 1.0);
+    let l = |x: u8, y: u8| (f32::from(x) * (1.0 - t) + f32::from(y) * t).round() as u8;
+    Color32::from_rgb(l(a.r(), b.r()), l(a.g(), b.g()), l(a.b(), b.b()))
+}
+
+fn gradient_slider(
+    ui: &mut Ui,
+    _id_source: &str,
+    label: &str,
+    val: &mut f32,
+    gradient: impl Fn(f32) -> Color32,
+    t: &Tokens,
+) -> (bool, bool) {
+    let mut changed = false;
+    let mut done = false;
+    ui.horizontal(|ui| {
+        ui.add_space(16.0);
+        let (lr, _) = ui.allocate_exact_size(vec2(86.0, 18.0), Sense::hover());
+        ui.painter().text(lr.left_center(), Align2::LEFT_CENTER, label, regular(11.0), t.text);
+
+        let track_w = (ui.available_width() - 36.0).max(70.0);
+        let (rect, resp) = ui.allocate_exact_size(vec2(track_w, 18.0), Sense::click_and_drag());
+        let track_rect = Rect::from_center_size(rect.center(), vec2(track_w, 4.0));
+
+        let n = 12;
+        let mut m = Mesh::default();
+        for i in 0..=n {
+            let frac = i as f32 / n as f32;
+            let x = track_rect.min.x + frac * track_rect.width();
+            let col = gradient(frac);
+            m.colored_vertex(pos2(x, track_rect.min.y), col);
+            m.colored_vertex(pos2(x, track_rect.max.y), col);
+            if i > 0 {
+                let k = (i * 2) as u32;
+                m.add_triangle(k - 2, k - 1, k);
+                m.add_triangle(k - 1, k, k + 1);
+            }
+        }
+        ui.painter().add(m);
+
+        let p = (*val + 1.0) * 0.5;
+        let knob_x = track_rect.min.x + p.clamp(0.0, 1.0) * track_rect.width();
+        let knob_pos = pos2(knob_x, rect.center().y);
+        ui.painter().circle_stroke(knob_pos, 6.0, Stroke::new(1.0, Color32::from_black_alpha(100)));
+        ui.painter().circle_filled(knob_pos, 5.0, Color32::from_rgb(45, 45, 45));
+        ui.painter().circle_stroke(knob_pos, 5.0, Stroke::new(2.0, Color32::WHITE));
+
+        if (resp.dragged() || resp.clicked() || resp.drag_started())
+            && let Some(pos) = resp.interact_pointer_pos()
+        {
+            let new_p = ((pos.x - track_rect.min.x) / track_rect.width()).clamp(0.0, 1.0);
+            let new_v = (new_p * 2.0 - 1.0).clamp(-1.0, 1.0);
+            if (*val - new_v).abs() > 0.001 {
+                *val = new_v;
+                changed = true;
+            }
+        }
+        if resp.double_clicked() {
+            *val = 0.0;
+            changed = true;
+            done = true;
+        }
+        if resp.drag_stopped() {
+            done = true;
+        }
+
+        let int_val = (*val * 100.0).round() as i32;
+        let (num_r, _) = ui.allocate_exact_size(vec2(28.0, 18.0), Sense::hover());
+        ui.painter().text(num_r.right_center(), Align2::RIGHT_CENTER, format!("{int_val}"), regular(11.0), t.text_secondary);
+    });
+    (changed, done)
+}
+
+fn image_controls(
+    app: &mut FigApp,
+    ui: &mut Ui,
+    target: &PickerTarget,
+    paint: &mut Paint,
+    mut img: figcraft_color::ImagePaint,
+    t: &Tokens,
+) {
+    let mut filter_changed = false;
+    let mut filter_done = false;
+
+    ui.horizontal(|ui| {
+        ui.add_space(16.0);
+        let resp = widgets::dropdown(ui, tr(&format!("{:?}", img.scale_mode)), 100.0, None);
+        crate::right::menu_popup(&resp).show(|ui| {
+            for (l, m) in [
+                (tr("Fill"), ImageScaleMode::Fill),
+                (tr("Fit"), ImageScaleMode::Fit),
+                (tr("Crop"), ImageScaleMode::Crop),
+                (tr("Tile"), ImageScaleMode::Tile),
+            ] {
+                if crate::right::menu_item(ui, l, "") {
+                    img.scale_mode = m;
+                    paint.kind = PaintKind::Image(img.clone());
+                    write(app, target, paint, false);
+                    ui.close();
+                }
+            }
+        });
+        if icons::button(ui, Icon::Rotate, 24.0, false, tr("Rotate 90°")).clicked() {
+            img.rotation = (img.rotation + 1) % 4;
+            paint.kind = PaintKind::Image(img.clone());
+            write(app, target, paint, false);
+        }
+    });
+
+    // The image's own colour profile (decoding converts it into the file's).
+    let source = app.session.doc().ok().and_then(|d| figcraft_render::images::profile_name(&img.image, d.images.get(&img.image)));
+    let source = match source.as_deref() {
+        None => tr("Unknown — treated as sRGB"),
+        Some("") => tr("Embedded profile"),
+        Some(name) => name,
+    };
+    ui.horizontal(|ui| {
+        ui.add_space(16.0);
+        let text = trf("Color profile: {name}", &[("name", &source)]);
+        ui.add(egui::Label::new(egui::RichText::new(text).font(regular(11.0)).color(t.text_secondary)).truncate());
+    });
+
+    image_presets(app, ui, target, paint, img.filters);
+
+    // Collapsible Tone / Light section
+    let tone_open_id = Id::new("cp_image_tone_open");
+    let mut tone_open: bool = ui.data(|d| d.get_temp(tone_open_id)).unwrap_or(false);
+    ui.horizontal(|ui| {
+        ui.add_space(16.0);
+        let (rect, resp) = ui.allocate_exact_size(vec2(208.0, 22.0), Sense::click());
+        if resp.hovered() {
+            ui.painter().rect_filled(rect, CornerRadius::same(4), t.hover);
+        }
+        let chevron_rect = Rect::from_center_size(pos2(rect.min.x + 8.0, rect.center().y), vec2(10.0, 10.0));
+        icons::paint(ui.painter(), chevron_rect, if tone_open { Icon::Chevron } else { Icon::ChevronRight }, t.icon);
+        ui.painter().text(pos2(rect.min.x + 22.0, rect.center().y), Align2::LEFT_CENTER, tr("Light"), semibold(12.0), t.text);
+        if resp.clicked() {
+            tone_open = !tone_open;
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(tone_open_id, tone_open));
+
+    if tone_open {
+        let (c1, d1) = gradient_slider(
+            ui,
+            "cp_exp",
+            &tr("Exposure"),
+            &mut img.filters.exposure,
+            |t| lerp_color(Color32::from_rgb(50, 50, 50), Color32::from_rgb(220, 220, 220), t),
+            t,
+        );
+        let (c2, d2) = gradient_slider(
+            ui,
+            "cp_cnt",
+            &tr("Contrast"),
+            &mut img.filters.contrast,
+            |t| lerp_color(Color32::from_rgb(50, 50, 50), Color32::from_rgb(220, 220, 220), t),
+            t,
+        );
+        let (c3, d3) = gradient_slider(
+            ui,
+            "cp_hi",
+            &tr("Highlights"),
+            &mut img.filters.highlights,
+            |t| lerp_color(Color32::from_rgb(80, 80, 80), Color32::from_rgb(240, 240, 240), t),
+            t,
+        );
+        let (c4, d4) = gradient_slider(
+            ui,
+            "cp_sh",
+            &tr("Shadows"),
+            &mut img.filters.shadows,
+            |t| lerp_color(Color32::from_rgb(30, 30, 30), Color32::from_rgb(180, 180, 180), t),
+            t,
+        );
+        if c1 || c2 || c3 || c4 {
+            filter_changed = true;
+        }
+        if d1 || d2 || d3 || d4 {
+            filter_done = true;
+        }
+    }
+
+    // Collapsible Color section (Lightroom-style)
+    let color_open_id = Id::new("cp_image_color_open");
+    let mut color_open: bool = ui.data(|d| d.get_temp(color_open_id)).unwrap_or(true);
+    ui.horizontal(|ui| {
+        ui.add_space(16.0);
+        let (rect, resp) = ui.allocate_exact_size(vec2(208.0, 22.0), Sense::click());
+        if resp.hovered() {
+            ui.painter().rect_filled(rect, CornerRadius::same(4), t.hover);
+        }
+        let chevron_rect = Rect::from_center_size(pos2(rect.min.x + 8.0, rect.center().y), vec2(10.0, 10.0));
+        icons::paint(ui.painter(), chevron_rect, if color_open { Icon::Chevron } else { Icon::ChevronRight }, t.icon);
+        ui.painter().text(pos2(rect.min.x + 22.0, rect.center().y), Align2::LEFT_CENTER, tr("Color"), semibold(12.0), t.text);
+        if resp.clicked() {
+            color_open = !color_open;
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(color_open_id, color_open));
+
+    if color_open {
+        // White Balance row
+        ui.horizontal(|ui| {
+            ui.add_space(16.0);
+            let (lbl_r, _) = ui.allocate_exact_size(vec2(86.0, 20.0), Sense::hover());
+            ui.painter().text(lbl_r.left_center(), Align2::LEFT_CENTER, tr("White Balance"), regular(11.0), t.text_secondary);
+
+            let wb_label = if img.filters.temperature.abs() < 0.001 && img.filters.tint.abs() < 0.001 {
+                tr("As Shot")
+            } else {
+                tr("Custom")
+            };
+            let resp = widgets::dropdown(ui, &wb_label, 84.0, None);
+            crate::right::menu_popup(&resp).show(|ui| {
+                for (l, temp, tint) in [
+                    (tr("As Shot"), 0.0, 0.0),
+                    (tr("Auto"), 0.05, -0.02),
+                    (tr("Daylight"), 0.1, 0.0),
+                    (tr("Cloudy"), 0.25, 0.05),
+                    (tr("Shade"), 0.35, 0.1),
+                    (tr("Tungsten"), -0.4, -0.05),
+                    (tr("Fluorescent"), 0.0, 0.2),
+                    (tr("Flash"), 0.15, 0.05),
+                ] {
+                    if crate::right::menu_item(ui, l, "") {
+                        img.filters.temperature = temp;
+                        img.filters.tint = tint;
+                        filter_changed = true;
+                        filter_done = true;
+                        ui.close();
+                    }
+                }
+            });
+
+            if icons::button(ui, Icon::Eyedropper, 20.0, false, tr("Pick color (I)")).clicked() {
+                app.run("edit.pickColor", json!({"apply": false}));
+            }
+        });
+
+        // Temp slider (Blue -> Neutral -> Yellow)
+        let (c1, d1) = gradient_slider(
+            ui,
+            "cp_temp",
+            &tr("Temp"),
+            &mut img.filters.temperature,
+            |t| {
+                if t < 0.5 {
+                    lerp_color(Color32::from_rgb(59, 130, 246), Color32::from_rgb(156, 163, 175), t * 2.0)
+                } else {
+                    lerp_color(Color32::from_rgb(156, 163, 175), Color32::from_rgb(234, 179, 8), (t - 0.5) * 2.0)
+                }
+            },
+            t,
+        );
+
+        // Tint slider (Green -> Neutral -> Magenta)
+        let (c2, d2) = gradient_slider(
+            ui,
+            "cp_tint",
+            &tr("Tint"),
+            &mut img.filters.tint,
+            |t| {
+                if t < 0.5 {
+                    lerp_color(Color32::from_rgb(34, 197, 94), Color32::from_rgb(156, 163, 175), t * 2.0)
+                } else {
+                    lerp_color(Color32::from_rgb(156, 163, 175), Color32::from_rgb(217, 70, 239), (t - 0.5) * 2.0)
+                }
+            },
+            t,
+        );
+
+        // Vibrance slider (Muted -> Saturated)
+        let (c3, d3) = gradient_slider(
+            ui,
+            "cp_vib",
+            &tr("Vibrance"),
+            &mut img.filters.vibrance,
+            |t| lerp_color(Color32::from_rgb(156, 163, 175), Color32::from_rgb(244, 63, 94), t),
+            t,
+        );
+
+        // Saturation slider (Gray -> Red)
+        let (c4, d4) = gradient_slider(
+            ui,
+            "cp_sat",
+            &tr("Saturation"),
+            &mut img.filters.saturation,
+            |t| lerp_color(Color32::from_rgb(107, 114, 128), Color32::from_rgb(239, 68, 68), t),
+            t,
+        );
+
+        if c1 || c2 || c3 || c4 {
+            filter_changed = true;
+        }
+        if d1 || d2 || d3 || d4 {
+            filter_done = true;
+        }
+    }
+
+    // Collapsible Color Mixer section
+    let mixer_open_id = Id::new("cp_image_mixer_open");
+    let mut mixer_open: bool = ui.data(|d| d.get_temp(mixer_open_id)).unwrap_or(true);
+    ui.horizontal(|ui| {
+        ui.add_space(16.0);
+        let (rect, resp) = ui.allocate_exact_size(vec2(208.0, 24.0), Sense::click());
+        if resp.hovered() {
+            ui.painter().rect_filled(rect, CornerRadius::same(4), t.hover);
+        }
+        let icon_center = pos2(rect.min.x + 10.0, rect.center().y);
+        ui.painter().circle_stroke(icon_center, 6.0, Stroke::new(1.2, t.icon));
+        ui.painter().circle_stroke(icon_center, 3.0, Stroke::new(1.0, t.icon));
+        ui.painter().circle_filled(icon_center, 1.0, t.icon);
+
+        ui.painter().text(pos2(rect.min.x + 24.0, rect.center().y), Align2::LEFT_CENTER, tr("Color Mixer"), semibold(12.0), t.text);
+
+        let chevron_rect = Rect::from_center_size(pos2(rect.max.x - 8.0, rect.center().y), vec2(10.0, 10.0));
+        icons::paint(ui.painter(), chevron_rect, if mixer_open { Icon::Chevron } else { Icon::ChevronRight }, t.icon_secondary);
+
+        if resp.clicked() {
+            mixer_open = !mixer_open;
+        }
+    });
+    ui.data_mut(|d| d.insert_temp(mixer_open_id, mixer_open));
+
+    if mixer_open {
+        const CHANNEL_COLORS: [Color32; 8] = [
+            Color32::from_rgb(229, 57, 53),  // Red
+            Color32::from_rgb(251, 140, 0),  // Orange
+            Color32::from_rgb(253, 216, 53), // Yellow
+            Color32::from_rgb(67, 160, 71),  // Green
+            Color32::from_rgb(0, 172, 193),  // Aqua
+            Color32::from_rgb(30, 136, 229), // Blue
+            Color32::from_rgb(142, 36, 170), // Purple
+            Color32::from_rgb(216, 27, 96),  // Magenta
+        ];
+
+        let ch_id = Id::new("cp_mixer_ch");
+        let mut active_channel: usize = ui.data(|d| d.get_temp(ch_id)).unwrap_or(0);
+        ui.horizontal(|ui| {
+            ui.add_space(16.0);
+            let step = 208.0 / 8.0;
+            for (i, &col) in CHANNEL_COLORS.iter().enumerate() {
+                let (rect, resp) = ui.allocate_exact_size(vec2(step, 24.0), Sense::click());
+                let center = rect.center();
+                let is_sel = active_channel == i;
+                if is_sel {
+                    ui.painter().circle_stroke(center, 9.5, Stroke::new(1.8, Color32::WHITE));
+                }
+                ui.painter().circle_filled(center, 7.0, col);
+                if is_sel {
+                    ui.painter().circle_filled(center, 2.5, Color32::WHITE);
+                } else if resp.hovered() {
+                    ui.painter().circle_stroke(center, 8.5, Stroke::new(1.2, Color32::from_white_alpha(180)));
+                }
+                if resp.clicked() {
+                    active_channel = i;
+                }
+            }
+        });
+        ui.data_mut(|d| d.insert_temp(ch_id, active_channel));
+
+        let tab_id = Id::new("cp_mixer_tab");
+        let mut active_tab: usize = ui.data(|d| d.get_temp(tab_id)).unwrap_or(0);
+        ui.horizontal(|ui| {
+            ui.add_space(16.0);
+            let (tr_rect, tr_resp) = ui.allocate_exact_size(vec2(22.0, widgets::FIELD_H), Sense::click());
+            if tr_resp.hovered() {
+                ui.painter().rect_filled(tr_rect, CornerRadius::same(4), t.hover);
+            }
+            let center = tr_rect.center();
+            ui.painter().circle_stroke(center, 6.0, Stroke::new(1.2, t.icon));
+            ui.painter().circle_stroke(center, 2.5, Stroke::new(1.0, t.icon));
+
+            let tabs = [tr("Hue"), tr("Saturation"), tr("Luminance")];
+            if let Some(tab) = widgets::segmented_text(ui, &tabs, active_tab) {
+                active_tab = tab;
+            }
+        });
+        ui.data_mut(|d| d.insert_temp(tab_id, active_tab));
+
+        let channel_names = ["Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Magenta"];
+        let ch_name = channel_names.get(active_channel).copied().unwrap_or("Red");
+
+        let (c_hue, c_sat, c_lum) = match active_channel {
+            0 => (
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(216, 27, 96), Color32::from_rgb(229, 57, 53), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(229, 57, 53), Color32::from_rgb(251, 140, 0), (t - 0.5) * 2.0)
+                    }
+                },
+                |t: f32| lerp_color(Color32::from_rgb(110, 80, 80), Color32::from_rgb(229, 57, 53), t),
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(40, 10, 10), Color32::from_rgb(200, 40, 40), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(200, 40, 40), Color32::from_rgb(255, 160, 160), (t - 0.5) * 2.0)
+                    }
+                },
+            ),
+            1 => (
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(229, 57, 53), Color32::from_rgb(251, 140, 0), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(251, 140, 0), Color32::from_rgb(253, 216, 53), (t - 0.5) * 2.0)
+                    }
+                },
+                |t: f32| lerp_color(Color32::from_rgb(110, 95, 80), Color32::from_rgb(251, 140, 0), t),
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(40, 20, 10), Color32::from_rgb(220, 120, 10), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(220, 120, 10), Color32::from_rgb(255, 200, 140), (t - 0.5) * 2.0)
+                    }
+                },
+            ),
+            2 => (
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(251, 140, 0), Color32::from_rgb(253, 216, 53), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(253, 216, 53), Color32::from_rgb(67, 160, 71), (t - 0.5) * 2.0)
+                    }
+                },
+                |t: f32| lerp_color(Color32::from_rgb(105, 105, 80), Color32::from_rgb(253, 216, 53), t),
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(40, 35, 10), Color32::from_rgb(220, 190, 20), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(220, 190, 20), Color32::from_rgb(255, 245, 160), (t - 0.5) * 2.0)
+                    }
+                },
+            ),
+            3 => (
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(253, 216, 53), Color32::from_rgb(67, 160, 71), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(67, 160, 71), Color32::from_rgb(0, 172, 193), (t - 0.5) * 2.0)
+                    }
+                },
+                |t: f32| lerp_color(Color32::from_rgb(85, 105, 85), Color32::from_rgb(67, 160, 71), t),
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(10, 40, 10), Color32::from_rgb(50, 140, 50), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(50, 140, 50), Color32::from_rgb(160, 240, 160), (t - 0.5) * 2.0)
+                    }
+                },
+            ),
+            4 => (
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(67, 160, 71), Color32::from_rgb(0, 172, 193), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(0, 172, 193), Color32::from_rgb(30, 136, 229), (t - 0.5) * 2.0)
+                    }
+                },
+                |t: f32| lerp_color(Color32::from_rgb(80, 105, 110), Color32::from_rgb(0, 172, 193), t),
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(10, 35, 40), Color32::from_rgb(0, 150, 170), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(0, 150, 170), Color32::from_rgb(160, 240, 255), (t - 0.5) * 2.0)
+                    }
+                },
+            ),
+            5 => (
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(0, 172, 193), Color32::from_rgb(30, 136, 229), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(30, 136, 229), Color32::from_rgb(142, 36, 170), (t - 0.5) * 2.0)
+                    }
+                },
+                |t: f32| lerp_color(Color32::from_rgb(80, 90, 110), Color32::from_rgb(30, 136, 229), t),
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(10, 20, 50), Color32::from_rgb(25, 115, 200), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(25, 115, 200), Color32::from_rgb(160, 205, 255), (t - 0.5) * 2.0)
+                    }
+                },
+            ),
+            6 => (
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(30, 136, 229), Color32::from_rgb(142, 36, 170), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(142, 36, 170), Color32::from_rgb(216, 27, 96), (t - 0.5) * 2.0)
+                    }
+                },
+                |t: f32| lerp_color(Color32::from_rgb(95, 80, 105), Color32::from_rgb(142, 36, 170), t),
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(30, 10, 40), Color32::from_rgb(120, 30, 150), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(120, 30, 150), Color32::from_rgb(220, 160, 245), (t - 0.5) * 2.0)
+                    }
+                },
+            ),
+            _ => (
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(142, 36, 170), Color32::from_rgb(216, 27, 96), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(216, 27, 96), Color32::from_rgb(229, 57, 53), (t - 0.5) * 2.0)
+                    }
+                },
+                |t: f32| lerp_color(Color32::from_rgb(110, 80, 95), Color32::from_rgb(216, 27, 96), t),
+                |t: f32| {
+                    if t < 0.5 {
+                        lerp_color(Color32::from_rgb(45, 10, 25), Color32::from_rgb(190, 20, 85), t * 2.0)
+                    } else {
+                        lerp_color(Color32::from_rgb(190, 20, 85), Color32::from_rgb(255, 160, 210), (t - 0.5) * 2.0)
+                    }
+                },
+            ),
+        };
+
+        if let Some(ch) = img.filters.mixer.channel_mut(active_channel) {
+            let (chg_h, dn_h) = gradient_slider(ui, "cp_mix_hue", &format!("{ch_name} Hue"), &mut ch.hue, c_hue, t);
+            let (chg_s, dn_s) = gradient_slider(ui, "cp_mix_sat", &format!("{ch_name} Saturation"), &mut ch.saturation, c_sat, t);
+            let (chg_l, dn_l) = gradient_slider(ui, "cp_mix_lum", &format!("{ch_name} Luminance"), &mut ch.luminance, c_lum, t);
+            if chg_h || chg_s || chg_l {
+                filter_changed = true;
+            }
+            if dn_h || dn_s || dn_l {
+                filter_done = true;
+            }
+        }
+    }
+
+    if filter_changed {
+        paint.kind = PaintKind::Image(img);
+        write(app, target, paint, !filter_done);
+    }
+    if filter_done {
+        finish(app);
     }
 }
 

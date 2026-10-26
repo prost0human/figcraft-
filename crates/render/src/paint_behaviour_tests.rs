@@ -5,7 +5,7 @@
 //! it does; where the documentation is silent the case says so and pins today's behaviour.
 //! Scenes are small and synthetic, drawn on a white page at 1×.
 
-use figcraft_color::{BlendMode, Color, ColorProfile, ColorStop, Gradient, GradientKind, Hsb, Hsl, ImageFilters, ImageScaleMode, Paint, PaintKind};
+use figcraft_color::{BlendMode, Color, ColorMixer, ColorProfile, ColorStop, Gradient, GradientKind, Hsb, Hsl, ImageFilters, ImageScaleMode, Paint, PaintKind};
 use figcraft_doc::{Document, ImageData, NodeId, NodeKind, StrokeAlign};
 
 use super::*;
@@ -542,6 +542,24 @@ fn image_opacity_and_adjustments() {
         ("cooler: less red, more blue", "808080", ImageFilters { temperature: -1.0, ..none }, |a, b| a[0] < b[0] && a[2] > b[2]),
         ("highlights up brighten the lights", "D0D0D0", ImageFilters { highlights: 1.0, ..none }, |a, b| a[0] > b[0]),
         ("shadows up brighten the darks", "303030", ImageFilters { shadows: 1.0, ..none }, |a, b| a[0] > b[0]),
+        ("vibrance up boosts saturation on muted tones", "B09080", ImageFilters { vibrance: 1.0, ..none }, |a, b| {
+            (a[0] as i32 - a[2] as i32) > (b[0] as i32 - b[2] as i32)
+        }),
+        ("red channel saturation down desaturates red", "FF0000", {
+            let mut m = ColorMixer::NONE;
+            m.red.saturation = -1.0;
+            ImageFilters { mixer: m, ..none }
+        }, |a, _| a[0].abs_diff(a[1]) <= 2 && a[1].abs_diff(a[2]) <= 2),
+        ("green channel luminance down darkens green", "00FF00", {
+            let mut m = ColorMixer::NONE;
+            m.green.luminance = -0.8;
+            ImageFilters { mixer: m, ..none }
+        }, |a, b| a[1] < b[1]),
+        ("blue channel hue shifts blue", "0000FF", {
+            let mut m = ColorMixer::NONE;
+            m.blue.hue = 1.0;
+            ImageFilters { mixer: m, ..none }
+        }, |a, b| a != b),
     ];
     for (why, c, f, ok) in rows {
         let (got, was) = (adjust(c, f), rgb(c));

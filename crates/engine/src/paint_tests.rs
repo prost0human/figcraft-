@@ -136,6 +136,34 @@ fn image_adjust_refuses_what_it_cannot_do() {
 }
 
 #[test]
+fn image_adjust_vibrance_and_channel_mixer() {
+    let mut s = Session::new();
+    let r = image_rect(&mut s);
+    s.execute(
+        "image.adjust",
+        &json!({
+            "ids": [r],
+            "filters": {
+                "vibrance": 0.5,
+                "mixer": {
+                    "red": {"hue": 0.2, "saturation": -0.5, "luminance": 0.1},
+                    "blue": {"hue": -0.3, "saturation": 0.8}
+                }
+            }
+        }),
+    )
+    .unwrap();
+    let f = filters(&s, r);
+    assert_eq!(f.vibrance, 0.5);
+    assert_eq!(f.mixer.red.hue, 0.2);
+    assert_eq!(f.mixer.red.saturation, -0.5);
+    assert_eq!(f.mixer.red.luminance, 0.1);
+    assert_eq!(f.mixer.blue.hue, -0.3);
+    assert_eq!(f.mixer.blue.saturation, 0.8);
+    assert_eq!(f.mixer.blue.luminance, 0.0);
+}
+
+#[test]
 fn saved_image_presets() {
     let mut s = Session::new();
     let r = image_rect(&mut s);
