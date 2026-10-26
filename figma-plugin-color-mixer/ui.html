@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
   <title>Lightroom Color Mixer</title>
@@ -30,9 +30,9 @@
       overflow: hidden;
     }
 
-    /* Top Layer Status */
+    /* Top Layer Status & Mode Bar */
     .status-bar {
-      padding: 8px 12px;
+      padding: 7px 12px;
       background: var(--bg-panel);
       border-bottom: 1px solid var(--border);
       display: flex;
@@ -55,21 +55,36 @@
       flex-shrink: 0;
     }
     .status-indicator.inactive { background: #ff9500; }
-    .status-text { font-weight: 500; color: #fff; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+    .status-text { font-weight: 500; color: #fff; max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+
+    .status-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .toggle-label input { cursor: pointer; accent-color: var(--accent); }
 
     /* Scrollable Content */
     .content {
       flex: 1;
       overflow-y: auto;
       overflow-x: hidden;
-      padding-bottom: 12px;
+      padding-bottom: 8px;
     }
-    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar { width: 5px; }
     .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-    /* Preview Canvas Area */
+    /* Optional Preview Area */
     .preview-box {
-      margin: 10px 12px 6px;
+      margin: 8px 12px 6px;
       background: #181818;
       border-radius: 6px;
       border: 1px solid var(--border);
@@ -77,30 +92,33 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 120px;
+      min-height: 100px;
       position: relative;
       overflow: hidden;
+      transition: all 0.2s;
     }
+    .preview-box.hidden { display: none !important; }
     .preview-box canvas {
       max-width: 100%;
-      max-height: 160px;
+      max-height: 130px;
       display: block;
       object-fit: contain;
     }
     .preview-empty {
       color: var(--text-muted);
       text-align: center;
-      padding: 24px 12px;
+      padding: 20px 12px;
+      font-size: 11px;
     }
     .compare-btn {
       position: absolute;
       bottom: 6px;
       right: 6px;
-      background: rgba(0, 0, 0, 0.65);
+      background: rgba(0, 0, 0, 0.7);
       backdrop-filter: blur(4px);
       border: 1px solid rgba(255, 255, 255, 0.2);
       color: #fff;
-      padding: 2px 8px;
+      padding: 2px 7px;
       border-radius: 4px;
       font-size: 10px;
       cursor: pointer;
@@ -111,7 +129,7 @@
       border-bottom: 1px solid var(--border);
     }
     .section-header {
-      padding: 8px 12px;
+      padding: 7px 12px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -125,14 +143,14 @@
     .chevron { transition: transform 0.2s; }
     .section.collapsed .chevron { transform: rotate(-90deg); }
     .section.collapsed .section-body { display: none; }
-    .section-body { padding: 8px 12px 12px; }
+    .section-body { padding: 8px 12px 10px; }
 
     /* Presets Quick Bar */
     .presets-bar {
       display: flex;
-      gap: 6px;
+      gap: 5px;
       overflow-x: auto;
-      padding: 6px 12px 10px;
+      padding: 6px 12px;
       border-bottom: 1px solid var(--border);
     }
     .presets-bar::-webkit-scrollbar { display: none; }
@@ -140,7 +158,7 @@
       background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: 12px;
-      padding: 3px 10px;
+      padding: 2px 9px;
       white-space: nowrap;
       cursor: pointer;
       font-size: 10px;
@@ -150,18 +168,83 @@
     .preset-pill:hover { background: var(--bg-hover); color: #fff; border-color: #555; }
     .preset-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
+    /* Match Color to Reference Card */
+    .match-card {
+      background: #252525;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      margin-bottom: 8px;
+    }
+    .match-slots {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0;
+    }
+    .color-slot {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .color-slot-label { font-size: 10px; color: var(--text-muted); }
+    .color-slot-box {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 3px 6px;
+      cursor: pointer;
+    }
+    .color-slot-box:hover { border-color: #666; }
+    .color-preview-circle {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.25);
+      flex-shrink: 0;
+    }
+    .color-hex-text {
+      font-size: 10px;
+      color: #ddd;
+      font-family: monospace;
+      flex: 1;
+    }
+    .btn-eyedrop {
+      background: none;
+      border: none;
+      color: #aaa;
+      cursor: pointer;
+      padding: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .btn-eyedrop:hover { color: #fff; }
+    .arrow-icon { color: var(--text-muted); text-align: center; font-size: 14px; }
+    .match-info-text {
+      font-size: 10px;
+      color: #8bc34a;
+      line-height: 1.3;
+      margin-top: 4px;
+      display: none;
+    }
+
     /* Rows & Controls */
     .row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      margin-bottom: 8px;
+      margin-bottom: 7px;
     }
     .row:last-child { margin-bottom: 0; }
     .control-label {
       color: var(--text-muted);
       font-size: 11px;
-      width: 72px;
+      width: 70px;
       flex-shrink: 0;
     }
 
@@ -176,7 +259,7 @@
       color: #fff;
       border: 1px solid var(--border);
       border-radius: 4px;
-      padding: 4px 6px;
+      padding: 3px 6px;
       font-size: 11px;
       outline: none;
     }
@@ -185,8 +268,8 @@
       border: 1px solid var(--border);
       color: #fff;
       border-radius: 4px;
-      width: 24px;
-      height: 24px;
+      width: 22px;
+      height: 22px;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -199,10 +282,10 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin-bottom: 7px;
+      margin-bottom: 6px;
     }
     .slider-label {
-      width: 68px;
+      width: 66px;
       color: var(--text-muted);
       font-size: 11px;
       flex-shrink: 0;
@@ -227,8 +310,8 @@
     }
     .slider-input::-webkit-slider-thumb {
       -webkit-appearance: none;
-      width: 14px;
-      height: 14px;
+      width: 13px;
+      height: 13px;
       border-radius: 50%;
       background: #ffffff;
       box-shadow: 0 1px 3px rgba(0,0,0,0.6);
@@ -236,7 +319,7 @@
       border: 1px solid #111;
       transition: transform 0.1s;
     }
-    .slider-input::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    .slider-input::-webkit-slider-thumb:hover { transform: scale(1.18); }
     .slider-track {
       position: absolute;
       top: 5px;
@@ -248,7 +331,7 @@
       pointer-events: none;
     }
     .slider-val {
-      width: 32px;
+      width: 30px;
       text-align: right;
       color: #fff;
       font-size: 11px;
@@ -265,7 +348,7 @@
     .swatches-grid {
       display: flex;
       justify-content: space-between;
-      margin: 4px 0 10px;
+      margin: 2px 0 8px;
       padding: 0 2px;
     }
     .swatch-btn {
@@ -283,14 +366,12 @@
     }
     .swatch-btn:hover { transform: scale(1.15); }
     .swatch-btn .dot {
-      width: 14px;
-      height: 14px;
+      width: 13px;
+      height: 13px;
       border-radius: 50%;
       box-shadow: 0 1px 2px rgba(0,0,0,0.5);
     }
-    .swatch-btn.active {
-      border-color: #ffffff;
-    }
+    .swatch-btn.active { border-color: #ffffff; }
     .swatch-btn.active .dot::after {
       content: '';
       position: absolute;
@@ -308,7 +389,7 @@
       display: flex;
       align-items: center;
       gap: 6px;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     .segmented {
       display: flex;
@@ -321,7 +402,7 @@
     .segment {
       flex: 1;
       text-align: center;
-      padding: 4px 0;
+      padding: 3px 0;
       border-radius: 4px;
       cursor: pointer;
       font-size: 10px;
@@ -333,15 +414,15 @@
 
     /* Action Footer */
     .footer {
-      padding: 10px 12px;
+      padding: 8px 12px;
       background: var(--bg-panel);
       border-top: 1px solid var(--border);
       display: flex;
-      gap: 8px;
+      gap: 6px;
     }
     .btn {
-      padding: 8px 12px;
-      border-radius: 6px;
+      padding: 6px 10px;
+      border-radius: 5px;
       font-size: 11px;
       font-weight: 500;
       cursor: pointer;
@@ -351,7 +432,7 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      gap: 6px;
+      gap: 5px;
       transition: all 0.15s;
     }
     .btn:hover { background: var(--bg-hover); }
@@ -361,23 +442,31 @@
       border-color: var(--accent);
     }
     .btn-primary:hover { background: var(--accent-hover); }
-    .btn-danger:hover { color: #ff5555; }
+    .btn-sm { padding: 4px 8px; font-size: 10px; }
   </style>
 </head>
 <body>
 
-  <!-- Top Status -->
+  <!-- Top Status & Live Controls -->
   <div class="status-bar">
     <div class="status-left">
       <span class="status-indicator" id="status-dot"></span>
-      <span class="status-text" id="status-text">Detecting selection…</span>
+      <span class="status-text" id="status-text">Определение слоя…</span>
     </div>
-    <span style="color:var(--text-muted); font-size:10px;">Lightroom Color</span>
+    <div class="status-actions">
+      <label class="toggle-label" title="Применять изменения сразу на холсте Figma">
+        <input type="checkbox" id="chk-live-canvas" checked>
+        <span>Live Canvas</span>
+      </label>
+      <button class="tool-btn" id="btn-toggle-preview" title="Скрыть/показать встроенный предпросмотр">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+      </button>
+    </div>
   </div>
 
   <!-- Presets Quick Bar -->
   <div class="presets-bar">
-    <div class="preset-pill active" data-preset="Default">Default</div>
+    <div class="preset-pill active" data-preset="Default">Сброс</div>
     <div class="preset-pill" data-preset="Warm Sunset">Warm Sunset</div>
     <div class="preset-pill" data-preset="Cool Film">Cool Film</div>
     <div class="preset-pill" data-preset="Vivid Landscape">Vivid Landscape</div>
@@ -388,11 +477,62 @@
   <!-- Content -->
   <div class="content">
 
-    <!-- Preview Canvas Area -->
-    <div class="preview-box">
-      <div class="preview-empty" id="preview-empty">Select a shape with an image fill in Figma to edit</div>
+    <!-- Optional Preview Canvas Area -->
+    <div class="preview-box" id="preview-wrapper">
+      <div class="preview-empty" id="preview-empty">Выберите слой с изображением на холсте Figma</div>
       <canvas id="preview-canvas" style="display:none;"></canvas>
-      <button class="compare-btn" id="btn-compare" style="display:none;">Hold: Original</button>
+      <button class="compare-btn" id="btn-compare" style="display:none;">Зажать: Оригинал</button>
+    </div>
+
+    <!-- Section: Привести цвет к референсу (Match Color) -->
+    <div class="section" id="sec-match">
+      <div class="section-header" onclick="toggleSection('sec-match')">
+        <div class="section-title-wrap">
+          <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          <span style="color:#0d99ff;">🎯 Привести цвет к референсу</span>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="match-card">
+          <div style="font-size:10px; color:#aaa; margin-bottom:4px;">
+            Кликните пипеткой по цвету, который нужно изменить, а затем по референсу:
+          </div>
+          <div class="match-slots">
+            <!-- Исходный цвет -->
+            <div class="color-slot">
+              <span class="color-slot-label">Исходный цвет</span>
+              <div class="color-slot-box" id="box-src-color" title="Кликните, чтобы выбрать пипеткой с экрана или холста">
+                <span class="color-preview-circle" id="prev-src-color" style="background:#ff2d55;"></span>
+                <span class="color-hex-text" id="hex-src-color">#FF2D55</span>
+                <button class="btn-eyedrop" id="btn-pick-src" title="Пипетка">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2l4 4-2.5 2.5-4-4L14 2z"/><path d="M11.5 6.5l-8 8a2.12 2.12 0 0 0-.5 1.5V19h3a2.12 2.12 0 0 0 1.5-.5l8-8-4-4z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="arrow-icon">➔</div>
+
+            <!-- Референсный цвет -->
+            <div class="color-slot">
+              <span class="color-slot-label">Цвет-образец</span>
+              <div class="color-slot-box" id="box-ref-color" title="Кликните, чтобы выбрать пипеткой цвет образца">
+                <span class="color-preview-circle" id="prev-ref-color" style="background:#ff9500;"></span>
+                <span class="color-hex-text" id="hex-ref-color">#FF9500</span>
+                <button class="btn-eyedrop" id="btn-pick-ref" title="Пипетка">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2l4 4-2.5 2.5-4-4L14 2z"/><path d="M11.5 6.5l-8 8a2.12 2.12 0 0 0-.5 1.5V19h3a2.12 2.12 0 0 0 1.5-.5l8-8-4-4z"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex; gap:6px; margin-top:6px;">
+            <button class="btn btn-primary btn-sm" id="btn-match-apply" style="width:100%;">
+              ⚡ Подогнать оттенок под образец
+            </button>
+          </div>
+          <div class="match-info-text" id="match-info"></div>
+        </div>
+      </div>
     </div>
 
     <!-- Section: Color (White Balance & Tone) -->
@@ -418,7 +558,7 @@
               <option value="Flash">Flash</option>
               <option value="Custom">Custom</option>
             </select>
-            <button class="tool-btn" id="btn-eyedropper" title="White Balance Picker">
+            <button class="tool-btn" id="btn-wb-picker" title="Пипетка баланса белого (кликните по нейтрально серому)">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2l4 4-2.5 2.5-4-4L14 2z"/><path d="M11.5 6.5l-8 8a2.12 2.12 0 0 0-.5 1.5V19h3a2.12 2.12 0 0 0 1.5-.5l8-8-4-4z"/></svg>
             </button>
           </div>
@@ -487,7 +627,7 @@
 
         <!-- Mode Bar: Target Tool & HSL Segments -->
         <div class="mode-bar">
-          <button class="tool-btn" title="Target Adjustment Tool">
+          <button class="tool-btn" id="btn-mixer-target" title="Целевой выбор канала пипеткой с холста">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
           </button>
           <div class="segmented">
@@ -533,11 +673,11 @@
 
   <!-- Footer Actions -->
   <div class="footer">
-    <button class="btn btn-danger" id="btn-restore" title="Revert to original image">Revert</button>
-    <button class="btn" id="btn-reset" title="Reset all sliders to 0">Reset</button>
-    <button class="btn btn-primary" id="btn-apply">
+    <button class="btn" id="btn-restore" title="Откатить изображение к оригиналу">Оригинал</button>
+    <button class="btn" id="btn-reset" title="Сбросить все ползунки в ноль">Сброс</button>
+    <button class="btn btn-primary" id="btn-apply" title="Сохранить результат в слой">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-      Apply to Figma
+      Применить к слою
     </button>
   </div>
 
@@ -558,9 +698,14 @@
     let activeChannelIdx = 0;
     let activeMode = "all";
     let currentNodeId = null;
-    let originalImageBitmap = null;
     let originalImageData = null;
     let isComparingOriginal = false;
+    let isPreviewVisible = true;
+    let liveCanvasUpdateTimer = null;
+
+    // Eyedropper match state
+    let srcColorHex = "#FF2D55";
+    let refColorHex = "#FF9500";
 
     // Filters Model
     let filters = {
@@ -583,10 +728,14 @@
     // UI elements
     const statusDot = document.getElementById("status-dot");
     const statusText = document.getElementById("status-text");
+    const previewWrapper = document.getElementById("preview-wrapper");
     const previewEmpty = document.getElementById("preview-empty");
     const canvas = document.getElementById("preview-canvas");
     const ctx = canvas.getContext("2d");
     const btnCompare = document.getElementById("btn-compare");
+    const chkLiveCanvas = document.getElementById("chk-live-canvas");
+    const btnTogglePreview = document.getElementById("btn-toggle-preview");
+
     const slTemp = document.getElementById("sl-temp");
     const slTint = document.getElementById("sl-tint");
     const slVibrance = document.getElementById("sl-vibrance");
@@ -611,9 +760,30 @@
     const trackChSat = document.getElementById("track-ch-sat");
     const trackChLum = document.getElementById("track-ch-lum");
 
+    // Match Color Elements
+    const prevSrcColor = document.getElementById("prev-src-color");
+    const hexSrcColor = document.getElementById("hex-src-color");
+    const prevRefColor = document.getElementById("prev-ref-color");
+    const hexRefColor = document.getElementById("hex-ref-color");
+    const matchInfo = document.getElementById("match-info");
+
     function toggleSection(id) {
       document.getElementById(id).classList.toggle("collapsed");
     }
+
+    // Toggle Preview Window Visibility (for ultra-compact floating tool mode)
+    btnTogglePreview.addEventListener("click", () => {
+      isPreviewVisible = !isPreviewVisible;
+      previewWrapper.classList.toggle("hidden", !isPreviewVisible);
+      // Resize window in Figma
+      parent.postMessage({
+        pluginMessage: {
+          type: "RESIZE_WINDOW",
+          width: 350,
+          height: isPreviewVisible ? 680 : 530
+        }
+      }, "*");
+    });
 
     // Swatches click
     document.querySelectorAll(".swatch-btn").forEach(btn => {
@@ -666,18 +836,23 @@
       valChLum.textContent = (cur.lum > 0 ? "+" : "") + cur.lum;
     }
 
-    // Slider Listeners with double click reset
+    // Slider Listeners with double click reset and real-time canvas sync
     function setupSlider(input, valLabel, onChange) {
       input.addEventListener("input", () => {
         valLabel.textContent = (input.value > 0 ? "+" : "") + input.value;
         onChange(parseFloat(input.value));
         renderFilteredPreview();
+        scheduleLiveCanvasUpdate();
+      });
+      input.addEventListener("change", () => {
+        pushLiveCanvasUpdateNow();
       });
       input.addEventListener("dblclick", () => {
         input.value = 0;
         valLabel.textContent = "0";
         onChange(0);
         renderFilteredPreview();
+        pushLiveCanvasUpdateNow();
       });
     }
 
@@ -690,94 +865,49 @@
     setupSlider(slChSat, valChSat, v => filters.mixer[activeChannelIdx].sat = v);
     setupSlider(slChLum, valChLum, v => filters.mixer[activeChannelIdx].lum = v);
 
-    // White Balance Preset selector
-    wbSelect.addEventListener("change", () => {
-      const p = wbSelect.value;
-      if (p === "As Shot" || p === "Custom") return;
-      if (p === "Daylight") { slTemp.value = 10; slTint.value = 0; }
-      else if (p === "Cloudy") { slTemp.value = 25; slTint.value = 5; }
-      else if (p === "Shade") { slTemp.value = 40; slTint.value = 10; }
-      else if (p === "Tungsten") { slTemp.value = -45; slTint.value = -10; }
-      else if (p === "Fluorescent") { slTemp.value = -15; slTint.value = 25; }
-      else if (p === "Flash") { slTemp.value = 15; slTint.value = 5; }
-      else if (p === "Auto") { slTemp.value = 0; slTint.value = 0; }
-
-      filters.temp = parseFloat(slTemp.value);
-      filters.tint = parseFloat(slTint.value);
-      valTemp.textContent = (filters.temp > 0 ? "+" : "") + filters.temp;
-      valTint.textContent = (filters.tint > 0 ? "+" : "") + filters.tint;
-      renderFilteredPreview();
-    });
-
-    // Preset pills
-    document.querySelectorAll(".preset-pill").forEach(pill => {
-      pill.addEventListener("click", () => {
-        document.querySelectorAll(".preset-pill").forEach(p => p.classList.remove("active"));
-        pill.classList.add("active");
-        applyNamedPreset(pill.dataset.preset);
-      });
-    });
-
-    function applyNamedPreset(name) {
-      resetAllFilters();
-      if (name === "Warm Sunset") {
-        filters.temp = 25; filters.tint = 5; filters.vibrance = 25;
-        filters.mixer[1] = { hue: 10, sat: 35, lum: 5 }; // Orange
-        filters.mixer[5] = { hue: -5, sat: -20, lum: -5 }; // Blue
-      } else if (name === "Cool Film") {
-        filters.temp = -25; filters.tint = -5; filters.vibrance = 15;
-        filters.mixer[4] = { hue: 0, sat: 30, lum: 0 }; // Aqua
-        filters.mixer[5] = { hue: -10, sat: 25, lum: 5 }; // Blue
-      } else if (name === "Vivid Landscape") {
-        filters.vibrance = 35; filters.saturation = 10;
-        filters.mixer[3] = { hue: 5, sat: 40, lum: 10 }; // Green
-        filters.mixer[4] = { hue: 0, sat: 25, lum: 5 };  // Aqua
-        filters.mixer[5] = { hue: 0, sat: 35, lum: 0 };  // Blue
-      } else if (name === "Moody Teal") {
-        filters.temp = -15; filters.tint = 10; filters.vibrance = 10;
-        filters.mixer[1] = { hue: -10, sat: 20, lum: 0 }; // Orange
-        filters.mixer[4] = { hue: 0, sat: 30, lum: -10 }; // Aqua
-      } else if (name === "Clean Portrait") {
-        filters.temp = 5; filters.vibrance = 15;
-        filters.mixer[0] = { hue: 0, sat: 10, lum: 5 };   // Red
-        filters.mixer[1] = { hue: 5, sat: -5, lum: 10 };  // Orange
-      }
-      syncUIToFilters();
-      renderFilteredPreview();
+    // Live Canvas streaming to Figma artboard
+    function scheduleLiveCanvasUpdate() {
+      if (!chkLiveCanvas.checked || !currentNodeId || !originalImageData) return;
+      if (liveCanvasUpdateTimer) clearTimeout(liveCanvasUpdateTimer);
+      liveCanvasUpdateTimer = setTimeout(() => {
+        pushLiveCanvasUpdateNow();
+      }, 70); // 70ms debounce for smooth responsive canvas updates
     }
 
-    function syncUIToFilters() {
-      slTemp.value = filters.temp; valTemp.textContent = (filters.temp > 0 ? "+" : "") + filters.temp;
-      slTint.value = filters.tint; valTint.textContent = (filters.tint > 0 ? "+" : "") + filters.tint;
-      slVibrance.value = filters.vibrance; valVibrance.textContent = (filters.vibrance > 0 ? "+" : "") + filters.vibrance;
-      slSaturation.value = filters.saturation; valSaturation.textContent = (filters.saturation > 0 ? "+" : "") + filters.saturation;
-      updateActiveChannelUI();
+    function pushLiveCanvasUpdateNow() {
+      if (!chkLiveCanvas.checked || !currentNodeId || !originalImageData) return;
+      canvas.toBlob((blob) => {
+        if (!blob) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          parent.postMessage({
+            pluginMessage: {
+              type: "LIVE_UPDATE",
+              nodeId: currentNodeId,
+              bytes: new Uint8Array(reader.result),
+              settings: filters
+            }
+          }, "*");
+        };
+        reader.readAsArrayBuffer(blob);
+      }, "image/png");
     }
 
-    function resetAllFilters() {
-      filters.temp = 0; filters.tint = 0; filters.vibrance = 0; filters.saturation = 0;
-      for (let i = 0; i < 8; i++) {
-        filters.mixer[i] = { hue: 0, sat: 0, lum: 0 };
-      }
-      syncUIToFilters();
-      renderFilteredPreview();
+    // Color conversion utilities
+    function hexToRgb(hex) {
+      hex = hex.replace('#', '');
+      if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
+      const num = parseInt(hex, 16);
+      return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
     }
 
-    document.getElementById("btn-reset").addEventListener("click", resetAllFilters);
+    function rgbToHex(r, g, b) {
+      return '#' + [r, g, b].map(x => {
+        const h = Math.round(x).toString(16);
+        return h.length === 1 ? '0' + h : h;
+      }).join('').toUpperCase();
+    }
 
-    // Compare original button (press and hold)
-    btnCompare.addEventListener("mousedown", () => {
-      isComparingOriginal = true;
-      if (originalImageData) ctx.putImageData(originalImageData, 0, 0);
-    });
-    window.addEventListener("mouseup", () => {
-      if (isComparingOriginal) {
-        isComparingOriginal = false;
-        renderFilteredPreview();
-      }
-    });
-
-    // Image processing pipeline (HSL Color Mixer + Vibrance)
     function rgbToHsl(r, g, b) {
       r /= 255; g /= 255; b /= 255;
       const max = Math.max(r, g, b), min = Math.min(r, g, b);
@@ -825,11 +955,195 @@
       return d > 180 ? 360 - d : d;
     }
 
+    function signedAngularDiff(target, current) {
+      let diff = (target - current) % 360;
+      if (diff > 180) diff -= 360;
+      if (diff < -180) diff += 360;
+      return diff;
+    }
+
     function smoothstep(edge0, edge1, x) {
       const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
       return t * t * (3 - 2 * t);
     }
 
+    // Modern EyeDropper API (Chromium / Figma Desktop)
+    async function pickScreenColor() {
+      if ('EyeDropper' in window) {
+        try {
+          const eyeDropper = new EyeDropper();
+          const result = await eyeDropper.open();
+          return result.sRGBHex;
+        } catch (e) {
+          return null; // User cancelled
+        }
+      } else {
+        // Fallback for environments without EyeDropper
+        const hex = prompt("Введите HEX цвет (например #34C759):", "#34C759");
+        return hex && hex.startsWith('#') ? hex : null;
+      }
+    }
+
+    // Eyedropper buttons for Color Match
+    document.getElementById("btn-pick-src").addEventListener("click", async () => {
+      const color = await pickScreenColor();
+      if (color) {
+        srcColorHex = color;
+        prevSrcColor.style.background = color;
+        hexSrcColor.textContent = color.toUpperCase();
+      }
+    });
+
+    document.getElementById("btn-pick-ref").addEventListener("click", async () => {
+      const color = await pickScreenColor();
+      if (color) {
+        refColorHex = color;
+        prevRefColor.style.background = color;
+        hexRefColor.textContent = color.toUpperCase();
+      }
+    });
+
+    // Match Color Calculation Algorithm
+    document.getElementById("btn-match-apply").addEventListener("click", () => {
+      const srcRgb = hexToRgb(srcColorHex);
+      const refRgb = hexToRgb(refColorHex);
+
+      const [srcH, srcS, srcL] = rgbToHsl(srcRgb[0], srcRgb[1], srcRgb[2]);
+      const [refH, refS, refL] = rgbToHsl(refRgb[0], refRgb[1], refRgb[2]);
+
+      // 1. Find the closest channel among the 8 color swatches
+      let bestChannelIdx = 0;
+      let minDistance = 999;
+      for (let c = 0; c < 8; c++) {
+        const d = angularDist(srcH, CHANNELS[c].hue);
+        if (d < minDistance) {
+          minDistance = d;
+          bestChannelIdx = c;
+        }
+      }
+
+      // 2. Compute Hue shift required
+      const dHue = signedAngularDiff(refH, srcH);
+      // Map [-30..+30] degrees to [-100..+100] slider range
+      const hueSlider = Math.max(-100, Math.min(100, Math.round((dHue / 30) * 100)));
+
+      // 3. Compute Saturation delta
+      const dSat = (refS - srcS);
+      const satSlider = Math.max(-100, Math.min(100, Math.round(dSat * 100)));
+
+      // 4. Compute Luminance delta
+      const dLum = (refL - srcL);
+      const lumSlider = Math.max(-100, Math.min(100, Math.round((dLum / 0.5) * 100)));
+
+      // 5. Apply to target channel
+      filters.mixer[bestChannelIdx].hue = hueSlider;
+      filters.mixer[bestChannelIdx].sat = satSlider;
+      filters.mixer[bestChannelIdx].lum = lumSlider;
+
+      // Select channel in UI
+      activeChannelIdx = bestChannelIdx;
+      document.querySelectorAll(".swatch-btn").forEach(b => b.classList.remove("active"));
+      const btn = document.querySelector(`.swatch-btn[data-channel="${bestChannelIdx}"]`);
+      if (btn) btn.classList.add("active");
+
+      updateActiveChannelUI();
+      renderFilteredPreview();
+      pushLiveCanvasUpdateNow();
+
+      // Show match info notification
+      matchInfo.style.display = "block";
+      matchInfo.innerHTML = `✓ Подогнан канал <b>${CHANNELS[bestChannelIdx].name}</b>: Hue: ${hueSlider > 0 ? '+' : ''}${hueSlider}, Sat: ${satSlider > 0 ? '+' : ''}${satSlider}%, Lum: ${lumSlider > 0 ? '+' : ''}${lumSlider}%`;
+    });
+
+    // White Balance Eyedropper tool
+    document.getElementById("btn-wb-picker").addEventListener("click", async () => {
+      const color = await pickScreenColor();
+      if (color) {
+        const [r, g, b] = hexToRgb(color);
+        // Calculate temp & tint deviation from neutral gray
+        const tempDelta = Math.round(((r - b) / 255) * -100);
+        const tintDelta = Math.round(((g - (r + b) / 2) / 255) * -100);
+
+        filters.temp = Math.max(-100, Math.min(100, tempDelta));
+        filters.tint = Math.max(-100, Math.min(100, tintDelta));
+        wbSelect.value = "Custom";
+        syncUIToFilters();
+        renderFilteredPreview();
+        pushLiveCanvasUpdateNow();
+      }
+    });
+
+    // Preset pills
+    document.querySelectorAll(".preset-pill").forEach(pill => {
+      pill.addEventListener("click", () => {
+        document.querySelectorAll(".preset-pill").forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        applyNamedPreset(pill.dataset.preset);
+      });
+    });
+
+    function applyNamedPreset(name) {
+      resetAllFilters();
+      if (name === "Warm Sunset") {
+        filters.temp = 25; filters.tint = 5; filters.vibrance = 25;
+        filters.mixer[1] = { hue: 10, sat: 35, lum: 5 }; // Orange
+        filters.mixer[5] = { hue: -5, sat: -20, lum: -5 }; // Blue
+      } else if (name === "Cool Film") {
+        filters.temp = -25; filters.tint = -5; filters.vibrance = 15;
+        filters.mixer[4] = { hue: 0, sat: 30, lum: 0 }; // Aqua
+        filters.mixer[5] = { hue: -10, sat: 25, lum: 5 }; // Blue
+      } else if (name === "Vivid Landscape") {
+        filters.vibrance = 35; filters.saturation = 10;
+        filters.mixer[3] = { hue: 5, sat: 40, lum: 10 }; // Green
+        filters.mixer[4] = { hue: 0, sat: 25, lum: 5 };  // Aqua
+        filters.mixer[5] = { hue: 0, sat: 35, lum: 0 };  // Blue
+      } else if (name === "Moody Teal") {
+        filters.temp = -15; filters.tint = 10; filters.vibrance = 10;
+        filters.mixer[1] = { hue: -10, sat: 20, lum: 0 }; // Orange
+        filters.mixer[4] = { hue: 0, sat: 30, lum: -10 }; // Aqua
+      } else if (name === "Clean Portrait") {
+        filters.temp = 5; filters.vibrance = 15;
+        filters.mixer[0] = { hue: 0, sat: 10, lum: 5 };   // Red
+        filters.mixer[1] = { hue: 5, sat: -5, lum: 10 };  // Orange
+      }
+      syncUIToFilters();
+      renderFilteredPreview();
+      pushLiveCanvasUpdateNow();
+    }
+
+    function syncUIToFilters() {
+      slTemp.value = filters.temp; valTemp.textContent = (filters.temp > 0 ? "+" : "") + filters.temp;
+      slTint.value = filters.tint; valTint.textContent = (filters.tint > 0 ? "+" : "") + filters.tint;
+      slVibrance.value = filters.vibrance; valVibrance.textContent = (filters.vibrance > 0 ? "+" : "") + filters.vibrance;
+      slSaturation.value = filters.saturation; valSaturation.textContent = (filters.saturation > 0 ? "+" : "") + filters.saturation;
+      updateActiveChannelUI();
+    }
+
+    function resetAllFilters() {
+      filters.temp = 0; filters.tint = 0; filters.vibrance = 0; filters.saturation = 0;
+      for (let i = 0; i < 8; i++) {
+        filters.mixer[i] = { hue: 0, sat: 0, lum: 0 };
+      }
+      syncUIToFilters();
+      renderFilteredPreview();
+      pushLiveCanvasUpdateNow();
+    }
+
+    document.getElementById("btn-reset").addEventListener("click", resetAllFilters);
+
+    // Compare original button (press and hold)
+    btnCompare.addEventListener("mousedown", () => {
+      isComparingOriginal = true;
+      if (originalImageData) ctx.putImageData(originalImageData, 0, 0);
+    });
+    window.addEventListener("mouseup", () => {
+      if (isComparingOriginal) {
+        isComparingOriginal = false;
+        renderFilteredPreview();
+      }
+    });
+
+    // Image processing pipeline
     function renderFilteredPreview() {
       if (!originalImageData || isComparingOriginal) return;
 
@@ -843,7 +1157,6 @@
       const tVib = filters.vibrance / 100;
       const tSat = filters.saturation / 100;
 
-      // Pre-extract mixer deltas
       const mixerActive = filters.mixer.some(m => m.hue !== 0 || m.sat !== 0 || m.lum !== 0);
 
       for (let i = 0; i < len; i += 4) {
@@ -892,7 +1205,7 @@
           }
         }
 
-        // 3. Vibrance (boosts low-saturation pixels more)
+        // 3. Vibrance
         if (tVib !== 0) {
           const boost = (1.0 - s) * tVib;
           s = Math.max(0, Math.min(1, s + s * boost));
@@ -922,9 +1235,9 @@
         if (!msg.hasImage) {
           currentNodeId = null;
           statusDot.className = "status-indicator inactive";
-          statusText.textContent = msg.message || "Select an image layer";
+          statusText.textContent = msg.message || "Выберите слой с изображением";
           previewEmpty.style.display = "block";
-          previewEmpty.textContent = msg.message || "Select an image or shape with image fill in Figma to edit";
+          previewEmpty.textContent = msg.message || "Выберите слой с изображением на холсте Figma";
           canvas.style.display = "none";
           btnCompare.style.display = "none";
           originalImageData = null;
@@ -936,13 +1249,11 @@
           canvas.style.display = "block";
           btnCompare.style.display = "block";
 
-          // Load image bytes into Canvas
           const blob = new Blob([msg.imageBytes], { type: "image/png" });
           const img = new Image();
           img.src = URL.createObjectURL(blob);
           await img.decode();
 
-          // Limit canvas resolution for fast 60fps interaction
           const maxDim = 600;
           let w = img.width, h = img.height;
           if (w > maxDim || h > maxDim) {
@@ -955,7 +1266,6 @@
           ctx.drawImage(img, 0, 0, w, h);
           originalImageData = ctx.getImageData(0, 0, w, h);
 
-          // Restore saved settings if node was previously edited
           if (msg.savedSettings) {
             filters = msg.savedSettings;
             syncUIToFilters();
@@ -966,22 +1276,21 @@
       }
     };
 
-    // Apply to Figma Button
+    // Apply Button (explicit save)
     document.getElementById("btn-apply").addEventListener("click", () => {
       if (!currentNodeId || !originalImageData) {
-        parent.postMessage({ pluginMessage: { type: "NOTIFY", text: "Please select an image layer first" } }, "*");
+        parent.postMessage({ pluginMessage: { type: "NOTIFY", text: "Сначала выберите слой с изображением" } }, "*");
         return;
       }
 
       canvas.toBlob((blob) => {
         const reader = new FileReader();
         reader.onload = () => {
-          const arrayBuffer = reader.result;
           parent.postMessage({
             pluginMessage: {
               type: "APPLY_IMAGE",
               nodeId: currentNodeId,
-              bytes: new Uint8Array(arrayBuffer),
+              bytes: new Uint8Array(reader.result),
               settings: filters
             }
           }, "*");

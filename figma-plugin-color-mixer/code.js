@@ -1,5 +1,5 @@
 // Figma Plugin Backend Sandbox (code.js)
-figma.showUI(__html__, { width: 360, height: 740, themeColors: true });
+figma.showUI(__html__, { width: 350, height: 680, themeColors: true });
 
 function getImageFill(node) {
   if (!node || !node.fills || !Array.isArray(node.fills)) return null;
@@ -15,18 +15,18 @@ function getImageFill(node) {
 async function sendSelection() {
   const selection = figma.currentPage.selection;
   if (!selection || selection.length === 0) {
-    figma.ui.postMessage({ type: 'SELECTION_CHANGED', hasImage: false, message: 'Select an image or shape with image fill' });
+    figma.ui.postMessage({ type: 'SELECTION_CHANGED', hasImage: false, message: 'Выберите картинку или фигуру с изображением' });
     return;
   }
 
   const node = selection[0];
   const imageInfo = getImageFill(node);
   if (!imageInfo) {
-    figma.ui.postMessage({ type: 'SELECTION_CHANGED', hasImage: false, message: 'Selected layer has no image fill' });
+    figma.ui.postMessage({ type: 'SELECTION_CHANGED', hasImage: false, message: 'У выбранного слоя нет заливки изображением' });
     return;
   }
 
-  // Check if we have an original image preserved in plugin data
+  // Preserve original image hash in pluginData for non-destructive workflow
   let originalHash = node.getPluginData('originalImageHash');
   if (!originalHash) {
     originalHash = imageInfo.fill.imageHash;
@@ -37,7 +37,7 @@ async function sendSelection() {
   const image = figma.getImageByHash(originalHash) || figma.getImageByHash(imageInfo.fill.imageHash);
 
   if (!image) {
-    figma.ui.postMessage({ type: 'SELECTION_CHANGED', hasImage: false, message: 'Could not load image bytes' });
+    figma.ui.postMessage({ type: 'SELECTION_CHANGED', hasImage: false, message: 'Не удалось прочитать изображение' });
     return;
   }
 
@@ -52,7 +52,7 @@ async function sendSelection() {
       savedSettings: savedSettings ? JSON.parse(savedSettings) : null
     });
   } catch (err) {
-    figma.ui.postMessage({ type: 'SELECTION_CHANGED', hasImage: false, message: 'Error reading image bytes' });
+    figma.ui.postMessage({ type: 'SELECTION_CHANGED', hasImage: false, message: 'Ошибка чтения байтов картинки' });
   }
 }
 
@@ -64,16 +64,16 @@ figma.on('selectionchange', () => {
 sendSelection();
 
 figma.ui.onmessage = async (msg) => {
-  if (msg.type === 'APPLY_IMAGE') {
+  if (msg.type === 'LIVE_UPDATE' || msg.type === 'APPLY_IMAGE') {
     const node = figma.getNodeById(msg.nodeId);
     if (!node) {
-      figma.notify('Selected layer was deleted or moved');
+      if (msg.type === 'APPLY_IMAGE') figma.notify('Слой был удален или перемещен');
       return;
     }
 
     const imageInfo = getImageFill(node);
     if (!imageInfo) {
-      figma.notify('Layer has no image fill');
+      if (msg.type === 'APPLY_IMAGE') figma.notify('У слоя нет заливки картинкой');
       return;
     }
 
@@ -83,13 +83,14 @@ figma.ui.onmessage = async (msg) => {
       newFills[imageInfo.index].imageHash = newImage.hash;
       node.fills = newFills;
 
-      // Persist settings for future non-destructive adjustments
       if (msg.settings) {
         node.setPluginData('colorSettings', JSON.stringify(msg.settings));
       }
-      figma.notify('✓ Color adjustments applied!');
+      if (msg.type === 'APPLY_IMAGE') {
+        figma.notify('✓ Цветокоррекция сохранена!');
+      }
     } catch (e) {
-      figma.notify('Error applying image: ' + e);
+      if (msg.type === 'APPLY_IMAGE') figma.notify('Ошибка применения: ' + e);
     }
   } else if (msg.type === 'RESTORE_ORIGINAL') {
     const node = figma.getNodeById(msg.nodeId);
@@ -102,10 +103,12 @@ figma.ui.onmessage = async (msg) => {
         newFills[imageInfo.index].imageHash = origHash;
         node.fills = newFills;
         node.setPluginData('colorSettings', '');
-        figma.notify('Restored original image');
+        figma.notify('Восстановлен исходный вид');
         sendSelection();
       }
     }
+  } else if (msg.type === 'RESIZE_WINDOW') {
+    figma.ui.resize(msg.width || 350, msg.height || 680);
   } else if (msg.type === 'NOTIFY') {
     figma.notify(msg.text);
   } else if (msg.type === 'CLOSE') {
