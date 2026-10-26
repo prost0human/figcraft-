@@ -1,5 +1,5 @@
 // Figma Plugin Backend Sandbox (code.js)
-figma.showUI(__html__, { width: 350, height: 680, themeColors: true });
+figma.showUI(__html__, { width: 360, height: 720, themeColors: true });
 
 function getImageFill(node) {
   if (!node || !node.fills || !Array.isArray(node.fills)) return null;
@@ -12,6 +12,13 @@ function getImageFill(node) {
   return null;
 }
 
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(x => {
+    const h = Math.max(0, Math.min(255, Math.round(x))).toString(16);
+    return h.length === 1 ? '0' + h : h;
+  }).join('').toUpperCase();
+}
+
 async function sendSelection() {
   const selection = figma.currentPage.selection;
   if (!selection || selection.length === 0) {
@@ -22,7 +29,23 @@ async function sendSelection() {
   const node = selection[0];
   const imageInfo = getImageFill(node);
   if (!imageInfo) {
-    figma.ui.postMessage({ type: 'SELECTION_CHANGED', hasImage: false, message: 'У выбранного слоя нет заливки изображением' });
+    // If selected layer is NOT an image, inform UI so user can still sample colors from it
+    let solidColor = null;
+    if (node.fills && Array.isArray(node.fills)) {
+      for (const f of node.fills) {
+        if (f.visible !== false && f.type === 'SOLID' && f.color) {
+          solidColor = rgbToHex(f.color.r * 255, f.color.g * 255, f.color.b * 255);
+          break;
+        }
+      }
+    }
+    figma.ui.postMessage({
+      type: 'SELECTION_CHANGED',
+      hasImage: false,
+      message: 'Выбран слой без картинки (' + node.name + ')',
+      layerColor: solidColor,
+      layerName: node.name
+    });
     return;
   }
 
@@ -60,7 +83,6 @@ figma.on('selectionchange', () => {
   sendSelection();
 });
 
-// Initial inspection
 sendSelection();
 
 figma.ui.onmessage = async (msg) => {
@@ -79,8 +101,8 @@ figma.ui.onmessage = async (msg) => {
 
     try {
       const newImage = figma.createImage(new Uint8Array(msg.bytes));
-      const newFills = JSON.parse(JSON.stringify(node.fills));
-      newFills[imageInfo.index].imageHash = newImage.hash;
+      const newFills = node.fills.slice();
+      newFills[imageInfo.index] = Object.assign({}, newFills[imageInfo.index], { imageHash: newImage.hash });
       node.fills = newFills;
 
       if (msg.settings) {
@@ -92,6 +114,36 @@ figma.ui.onmessage = async (msg) => {
     } catch (e) {
       if (msg.type === 'APPLY_IMAGE') figma.notify('Ошибка применения: ' + e);
     }
+  } else if (msg.type === 'GET_SELECTION_COLOR') {
+    // Sample color from current selection on Figma canvas
+    const selection = figma.currentPage.selection;
+    if (!selection || selection.length === 0) {
+      figma.notify('Выберите фигуру на холсте Figma для взятия цвета');
+      return;
+    }
+    const node = selection[0];
+    let hex = null;
+
+    if (node.fills && Array.isArray(node.fills)) {
+      for (const f of node.fills) {
+        if (f.visible !== false && f.type === 'SOLID' && f.color) {
+          hex = rgbToHex(f.color.r * 255, f.color.g * 255, f.color.b * 255);
+          break;
+        }
+      }
+    }
+
+    if (hex) {
+      figma.ui.postMessage({
+        type: 'LAYER_COLOR_PICKED',
+        targetSlot: msg.targetSlot,
+        hex: hex,
+        layerName: node.name
+      });
+      figma.notify('✓ Цвет ' + hex + ' взят со слоя «' + node.name + '»');
+    } else {
+      figma.notify('У выбранного слоя «' + node.name + '» нет сплошной заливки (Solid Fill)');
+    }
   } else if (msg.type === 'RESTORE_ORIGINAL') {
     const node = figma.getNodeById(msg.nodeId);
     if (!node) return;
@@ -99,8 +151,8 @@ figma.ui.onmessage = async (msg) => {
     if (origHash) {
       const imageInfo = getImageFill(node);
       if (imageInfo) {
-        const newFills = JSON.parse(JSON.stringify(node.fills));
-        newFills[imageInfo.index].imageHash = origHash;
+        const newFills = node.fills.slice();
+        newFills[imageInfo.index] = Object.assign({}, newFills[imageInfo.index], { imageHash: origHash });
         node.fills = newFills;
         node.setPluginData('colorSettings', '');
         figma.notify('Восстановлен исходный вид');
@@ -108,7 +160,7 @@ figma.ui.onmessage = async (msg) => {
       }
     }
   } else if (msg.type === 'RESIZE_WINDOW') {
-    figma.ui.resize(msg.width || 350, msg.height || 680);
+    figma.ui.resize(msg.width || 360, msg.height || 720);
   } else if (msg.type === 'NOTIFY') {
     figma.notify(msg.text);
   } else if (msg.type === 'CLOSE') {

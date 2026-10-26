@@ -82,7 +82,7 @@
     .content::-webkit-scrollbar { width: 5px; }
     .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 
-    /* Optional Preview Area */
+    /* Preview Box with Loupe */
     .preview-box {
       margin: 8px 12px 6px;
       background: #181818;
@@ -92,7 +92,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 100px;
+      min-height: 130px;
       position: relative;
       overflow: hidden;
       transition: all 0.2s;
@@ -100,16 +100,94 @@
     .preview-box.hidden { display: none !important; }
     .preview-box canvas {
       max-width: 100%;
-      max-height: 130px;
+      max-height: 150px;
       display: block;
       object-fit: contain;
+      cursor: default;
     }
+    .preview-box.sampling canvas {
+      cursor: crosshair !important;
+    }
+
     .preview-empty {
       color: var(--text-muted);
       text-align: center;
-      padding: 20px 12px;
+      padding: 24px 12px;
       font-size: 11px;
     }
+
+    /* Magnifier Loupe */
+    .loupe {
+      position: absolute;
+      width: 76px;
+      height: 76px;
+      border-radius: 50%;
+      border: 2px solid #ffffff;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.6);
+      pointer-events: none;
+      display: none;
+      overflow: hidden;
+      z-index: 50;
+      background: #000;
+    }
+    .loupe canvas {
+      width: 100%;
+      height: 100%;
+      image-rendering: pixelated;
+    }
+    .loupe-crosshair {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 10px;
+      height: 10px;
+      transform: translate(-50%, -50%);
+      border: 1px solid #fff;
+      box-shadow: 0 0 2px #000;
+      pointer-events: none;
+    }
+    .loupe-badge {
+      position: absolute;
+      bottom: 2px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.85);
+      color: #fff;
+      font-size: 8px;
+      font-family: monospace;
+      padding: 1px 3px;
+      border-radius: 2px;
+      white-space: nowrap;
+    }
+
+    /* Sampling Banner Overlay */
+    .sampling-banner {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      right: 6px;
+      background: rgba(13, 153, 255, 0.9);
+      backdrop-filter: blur(4px);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 500;
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 40;
+    }
+    .sampling-banner button {
+      background: none;
+      border: none;
+      color: #fff;
+      font-size: 11px;
+      font-weight: bold;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+
     .compare-btn {
       position: absolute;
       bottom: 6px;
@@ -122,6 +200,7 @@
       border-radius: 4px;
       font-size: 10px;
       cursor: pointer;
+      z-index: 10;
     }
 
     /* Collapsible Sections */
@@ -168,13 +247,12 @@
     .preset-pill:hover { background: var(--bg-hover); color: #fff; border-color: #555; }
     .preset-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
-    /* Match Color to Reference Card */
+    /* Match Color Card */
     .match-card {
       background: #252525;
       border: 1px solid var(--border);
       border-radius: 6px;
-      padding: 8px 10px;
-      margin-bottom: 8px;
+      padding: 9px 10px;
     }
     .match-slots {
       display: grid;
@@ -188,48 +266,68 @@
       flex-direction: column;
       gap: 4px;
     }
-    .color-slot-label { font-size: 10px; color: var(--text-muted); }
+    .color-slot-label { font-size: 10px; color: var(--text-muted); font-weight: 500; }
     .color-slot-box {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       background: var(--bg-input);
       border: 1px solid var(--border);
       border-radius: 4px;
-      padding: 3px 6px;
-      cursor: pointer;
+      padding: 4px 6px;
+      position: relative;
     }
-    .color-slot-box:hover { border-color: #666; }
     .color-preview-circle {
-      width: 16px;
-      height: 16px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
-      border: 1px solid rgba(255,255,255,0.25);
+      border: 1px solid rgba(255,255,255,0.3);
       flex-shrink: 0;
-    }
-    .color-hex-text {
-      font-size: 10px;
-      color: #ddd;
-      font-family: monospace;
-      flex: 1;
-    }
-    .btn-eyedrop {
-      background: none;
-      border: none;
-      color: #aaa;
       cursor: pointer;
-      padding: 2px;
+    }
+    .color-hex-input {
+      font-size: 10px;
+      color: #fff;
+      font-family: monospace;
+      width: 58px;
+      background: transparent;
+      border: none;
+      outline: none;
+      text-transform: uppercase;
+    }
+    .slot-actions {
       display: flex;
+      gap: 3px;
+      margin-top: 4px;
+    }
+    .btn-action-slot {
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: #ddd;
+      border-radius: 3px;
+      font-size: 9px;
+      padding: 3px 4px;
+      cursor: pointer;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
+      gap: 3px;
+      white-space: nowrap;
     }
-    .btn-eyedrop:hover { color: #fff; }
+    .btn-action-slot:hover { background: var(--bg-hover); color: #fff; }
+    .btn-action-slot.active { background: #0070c9; color: #fff; border-color: #0070c9; }
+
     .arrow-icon { color: var(--text-muted); text-align: center; font-size: 14px; }
-    .match-info-text {
+    .match-info-box {
       font-size: 10px;
-      color: #8bc34a;
-      line-height: 1.3;
-      margin-top: 4px;
+      color: #a3e635;
+      background: rgba(163, 230, 53, 0.1);
+      border: 1px solid rgba(163, 230, 53, 0.25);
+      border-radius: 4px;
+      padding: 6px 8px;
+      line-height: 1.4;
+      margin-top: 8px;
       display: none;
     }
 
@@ -338,13 +436,13 @@
       font-variant-numeric: tabular-nums;
     }
 
-    /* Specific Slider Track Gradients */
+    /* Gradients */
     .track-temp { background: linear-gradient(90deg, #0055ff, #808080 50%, #ffaa00); }
     .track-tint { background: linear-gradient(90deg, #00d665, #808080 50%, #ea00d6); }
     .track-vibrance { background: linear-gradient(90deg, #707070, #9a6575 50%, #ff2b55); }
     .track-saturation { background: linear-gradient(90deg, #666666, #ff2222); }
 
-    /* Color Mixer Swatches */
+    /* Swatches */
     .swatches-grid {
       display: flex;
       justify-content: space-between;
@@ -384,7 +482,7 @@
       transform: translate(-50%, -50%);
     }
 
-    /* Mode Segmented Switch */
+    /* Mode Segmented */
     .mode-bar {
       display: flex;
       align-items: center;
@@ -412,7 +510,7 @@
     .segment:hover { color: #fff; }
     .segment.active { background: #3e3e3e; color: #fff; font-weight: 500; }
 
-    /* Action Footer */
+    /* Footer */
     .footer {
       padding: 8px 12px;
       background: var(--bg-panel);
@@ -458,7 +556,7 @@
         <input type="checkbox" id="chk-live-canvas" checked>
         <span>Live Canvas</span>
       </label>
-      <button class="tool-btn" id="btn-toggle-preview" title="Скрыть/показать встроенный предпросмотр">
+      <button class="tool-btn" id="btn-toggle-preview" title="Скрыть/показать окно предпросмотра">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
       </button>
     </div>
@@ -477,11 +575,23 @@
   <!-- Content -->
   <div class="content">
 
-    <!-- Optional Preview Canvas Area -->
+    <!-- Preview Canvas Area with Zoom Loupe -->
     <div class="preview-box" id="preview-wrapper">
-      <div class="preview-empty" id="preview-empty">Выберите слой с изображением на холсте Figma</div>
+      <div class="sampling-banner" id="sampling-banner">
+        <span id="sampling-banner-text">Кликните по пикселю на картинке…</span>
+        <button id="btn-cancel-sampling">✕</button>
+      </div>
+
+      <div class="preview-empty" id="preview-empty">Выберите картинку на холсте Figma</div>
       <canvas id="preview-canvas" style="display:none;"></canvas>
       <button class="compare-btn" id="btn-compare" style="display:none;">Зажать: Оригинал</button>
+
+      <!-- 8x Magnifier Loupe -->
+      <div class="loupe" id="loupe">
+        <canvas id="loupe-canvas" width="76" height="76"></canvas>
+        <div class="loupe-crosshair"></div>
+        <div class="loupe-badge" id="loupe-badge">#000000</div>
+      </div>
     </div>
 
     <!-- Section: Привести цвет к референсу (Match Color) -->
@@ -494,43 +604,55 @@
       </div>
       <div class="section-body">
         <div class="match-card">
-          <div style="font-size:10px; color:#aaa; margin-bottom:4px;">
-            Кликните пипеткой по цвету, который нужно изменить, а затем по референсу:
+          <div style="font-size:10px; color:#aaa; margin-bottom:6px;">
+            1. Возьмите цвет с картинки ➔ 2. Задайте цвет-образец:
           </div>
+
           <div class="match-slots">
-            <!-- Исходный цвет -->
+            <!-- 1. Исходный цвет -->
             <div class="color-slot">
-              <span class="color-slot-label">Исходный цвет</span>
-              <div class="color-slot-box" id="box-src-color" title="Кликните, чтобы выбрать пипеткой с экрана или холста">
-                <span class="color-preview-circle" id="prev-src-color" style="background:#ff2d55;"></span>
-                <span class="color-hex-text" id="hex-src-color">#FF2D55</span>
-                <button class="btn-eyedrop" id="btn-pick-src" title="Пипетка">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2l4 4-2.5 2.5-4-4L14 2z"/><path d="M11.5 6.5l-8 8a2.12 2.12 0 0 0-.5 1.5V19h3a2.12 2.12 0 0 0 1.5-.5l8-8-4-4z"/></svg>
+              <span class="color-slot-label">1. Исходный цвет</span>
+              <div class="color-slot-box">
+                <span class="color-preview-circle" id="prev-src-color" style="background:#ff2d55;" title="Клик для вызова палитры"></span>
+                <input type="text" class="color-hex-input" id="hex-src-color" value="#FF2D55" maxlength="7">
+                <input type="color" id="native-pick-src" style="position:absolute; opacity:0; width:0; height:0;">
+              </div>
+              <div class="slot-actions">
+                <button class="btn-action-slot" id="btn-sample-src-image" title="Взять пипеткой прямо с картинки">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2l4 4-2.5 2.5-4-4L14 2z"/><path d="M11.5 6.5l-8 8a2.12 2.12 0 0 0-.5 1.5V19h3a2.12 2.12 0 0 0 1.5-.5l8-8-4-4z"/></svg>
+                  С картинки
                 </button>
               </div>
             </div>
 
             <div class="arrow-icon">➔</div>
 
-            <!-- Референсный цвет -->
+            <!-- 2. Референсный цвет -->
             <div class="color-slot">
-              <span class="color-slot-label">Цвет-образец</span>
-              <div class="color-slot-box" id="box-ref-color" title="Кликните, чтобы выбрать пипеткой цвет образца">
-                <span class="color-preview-circle" id="prev-ref-color" style="background:#ff9500;"></span>
-                <span class="color-hex-text" id="hex-ref-color">#FF9500</span>
-                <button class="btn-eyedrop" id="btn-pick-ref" title="Пипетка">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2l4 4-2.5 2.5-4-4L14 2z"/><path d="M11.5 6.5l-8 8a2.12 2.12 0 0 0-.5 1.5V19h3a2.12 2.12 0 0 0 1.5-.5l8-8-4-4z"/></svg>
+              <span class="color-slot-label">2. Цвет-образец</span>
+              <div class="color-slot-box">
+                <span class="color-preview-circle" id="prev-ref-color" style="background:#ff9500;" title="Клик для вызова палитры"></span>
+                <input type="text" class="color-hex-input" id="hex-ref-color" value="#FF9500" maxlength="7">
+                <input type="color" id="native-pick-ref" style="position:absolute; opacity:0; width:0; height:0;">
+              </div>
+              <div class="slot-actions">
+                <button class="btn-action-slot" id="btn-sample-ref-layer" title="Взять цвет с выделенного слоя/фигуры на холсте Figma">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                  С холста
+                </button>
+                <button class="btn-action-slot" id="btn-sample-ref-image" title="Взять цвет пипеткой с картинки">
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2l4 4-2.5 2.5-4-4L14 2z"/><path d="M11.5 6.5l-8 8a2.12 2.12 0 0 0-.5 1.5V19h3a2.12 2.12 0 0 0 1.5-.5l8-8-4-4z"/></svg>
+                  С фото
                 </button>
               </div>
             </div>
           </div>
 
-          <div style="display:flex; gap:6px; margin-top:6px;">
-            <button class="btn btn-primary btn-sm" id="btn-match-apply" style="width:100%;">
-              ⚡ Подогнать оттенок под образец
-            </button>
-          </div>
-          <div class="match-info-text" id="match-info"></div>
+          <button class="btn btn-primary btn-sm" id="btn-match-apply" style="width:100%; margin-top:8px;">
+            ⚡ Подогнать оттенок под образец
+          </button>
+
+          <div class="match-info-box" id="match-info"></div>
         </div>
       </div>
     </div>
@@ -558,7 +680,7 @@
               <option value="Flash">Flash</option>
               <option value="Custom">Custom</option>
             </select>
-            <button class="tool-btn" id="btn-wb-picker" title="Пипетка баланса белого (кликните по нейтрально серому)">
+            <button class="tool-btn" id="btn-wb-picker" title="Пипетка баланса белого: кликните по нейтрально-серой точке на фото">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2l4 4-2.5 2.5-4-4L14 2z"/><path d="M11.5 6.5l-8 8a2.12 2.12 0 0 0-.5 1.5V19h3a2.12 2.12 0 0 0 1.5-.5l8-8-4-4z"/></svg>
             </button>
           </div>
@@ -627,7 +749,7 @@
 
         <!-- Mode Bar: Target Tool & HSL Segments -->
         <div class="mode-bar">
-          <button class="tool-btn" id="btn-mixer-target" title="Целевой выбор канала пипеткой с холста">
+          <button class="tool-btn" id="btn-mixer-target" title="Кликните пипеткой по цвету на фото, чтобы автоматически выбрать его канал">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
           </button>
           <div class="segmented">
@@ -682,7 +804,7 @@
   </div>
 
   <script>
-    // Channel definitions
+    // 8 Channels Definition
     const CHANNELS = [
       { name: "Red", hue: 0, hex: "#ff2d55", gradHue: "linear-gradient(90deg, #ff00ff, #ff2d55, #ff9500)" },
       { name: "Orange", hue: 30, hex: "#ff9500", gradHue: "linear-gradient(90deg, #ff2d55, #ff9500, #ffcc00)" },
@@ -703,9 +825,8 @@
     let isPreviewVisible = true;
     let liveCanvasUpdateTimer = null;
 
-    // Eyedropper match state
-    let srcColorHex = "#FF2D55";
-    let refColorHex = "#FF9500";
+    // Sampling Mode: null | 'src' | 'ref' | 'wb' | 'mixer-target'
+    let samplingMode = null;
 
     // Filters Model
     let filters = {
@@ -725,17 +846,40 @@
       ]
     };
 
-    // UI elements
+    // UI Elements
     const statusDot = document.getElementById("status-dot");
     const statusText = document.getElementById("status-text");
     const previewWrapper = document.getElementById("preview-wrapper");
     const previewEmpty = document.getElementById("preview-empty");
     const canvas = document.getElementById("preview-canvas");
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     const btnCompare = document.getElementById("btn-compare");
     const chkLiveCanvas = document.getElementById("chk-live-canvas");
     const btnTogglePreview = document.getElementById("btn-toggle-preview");
 
+    // Loupe Elements
+    const loupe = document.getElementById("loupe");
+    const loupeCanvas = document.getElementById("loupe-canvas");
+    const loupeCtx = loupeCanvas.getContext("2d");
+    const loupeBadge = document.getElementById("loupe-badge");
+    const samplingBanner = document.getElementById("sampling-banner");
+    const samplingBannerText = document.getElementById("sampling-banner-text");
+    const btnCancelSampling = document.getElementById("btn-cancel-sampling");
+
+    // Match Color Elements
+    const prevSrcColor = document.getElementById("prev-src-color");
+    const hexSrcColor = document.getElementById("hex-src-color");
+    const prevRefColor = document.getElementById("prev-ref-color");
+    const hexRefColor = document.getElementById("hex-ref-color");
+    const nativePickSrc = document.getElementById("native-pick-src");
+    const nativePickRef = document.getElementById("native-pick-ref");
+    const btnSampleSrcImage = document.getElementById("btn-sample-src-image");
+    const btnSampleRefLayer = document.getElementById("btn-sample-ref-layer");
+    const btnSampleRefImage = document.getElementById("btn-sample-ref-image");
+    const btnMatchApply = document.getElementById("btn-match-apply");
+    const matchInfo = document.getElementById("match-info");
+
+    // Sliders
     const slTemp = document.getElementById("sl-temp");
     const slTint = document.getElementById("sl-tint");
     const slVibrance = document.getElementById("sl-vibrance");
@@ -760,27 +904,19 @@
     const trackChSat = document.getElementById("track-ch-sat");
     const trackChLum = document.getElementById("track-ch-lum");
 
-    // Match Color Elements
-    const prevSrcColor = document.getElementById("prev-src-color");
-    const hexSrcColor = document.getElementById("hex-src-color");
-    const prevRefColor = document.getElementById("prev-ref-color");
-    const hexRefColor = document.getElementById("hex-ref-color");
-    const matchInfo = document.getElementById("match-info");
-
     function toggleSection(id) {
       document.getElementById(id).classList.toggle("collapsed");
     }
 
-    // Toggle Preview Window Visibility (for ultra-compact floating tool mode)
+    // Toggle Preview Window
     btnTogglePreview.addEventListener("click", () => {
       isPreviewVisible = !isPreviewVisible;
       previewWrapper.classList.toggle("hidden", !isPreviewVisible);
-      // Resize window in Figma
       parent.postMessage({
         pluginMessage: {
           type: "RESIZE_WINDOW",
-          width: 350,
-          height: isPreviewVisible ? 680 : 530
+          width: 360,
+          height: isPreviewVisible ? 720 : 540
         }
       }, "*");
     });
@@ -836,7 +972,7 @@
       valChLum.textContent = (cur.lum > 0 ? "+" : "") + cur.lum;
     }
 
-    // Slider Listeners with double click reset and real-time canvas sync
+    // Sliders setup
     function setupSlider(input, valLabel, onChange) {
       input.addEventListener("input", () => {
         valLabel.textContent = (input.value > 0 ? "+" : "") + input.value;
@@ -865,13 +1001,13 @@
     setupSlider(slChSat, valChSat, v => filters.mixer[activeChannelIdx].sat = v);
     setupSlider(slChLum, valChLum, v => filters.mixer[activeChannelIdx].lum = v);
 
-    // Live Canvas streaming to Figma artboard
+    // Live Canvas Updates
     function scheduleLiveCanvasUpdate() {
       if (!chkLiveCanvas.checked || !currentNodeId || !originalImageData) return;
       if (liveCanvasUpdateTimer) clearTimeout(liveCanvasUpdateTimer);
       liveCanvasUpdateTimer = setTimeout(() => {
         pushLiveCanvasUpdateNow();
-      }, 70); // 70ms debounce for smooth responsive canvas updates
+      }, 70);
     }
 
     function pushLiveCanvasUpdateNow() {
@@ -893,7 +1029,7 @@
       }, "image/png");
     }
 
-    // Color conversion utilities
+    // Color Helpers
     function hexToRgb(hex) {
       hex = hex.replace('#', '');
       if (hex.length === 3) hex = hex.split('').map(c => c + c).join('');
@@ -903,7 +1039,7 @@
 
     function rgbToHex(r, g, b) {
       return '#' + [r, g, b].map(x => {
-        const h = Math.round(x).toString(16);
+        const h = Math.max(0, Math.min(255, Math.round(x))).toString(16);
         return h.length === 1 ? '0' + h : h;
       }).join('').toUpperCase();
     }
@@ -967,46 +1103,219 @@
       return t * t * (3 - 2 * t);
     }
 
-    // Modern EyeDropper API (Chromium / Figma Desktop)
-    async function pickScreenColor() {
-      if ('EyeDropper' in window) {
-        try {
-          const eyeDropper = new EyeDropper();
-          const result = await eyeDropper.open();
-          return result.sRGBHex;
-        } catch (e) {
-          return null; // User cancelled
-        }
-      } else {
-        // Fallback for environments without EyeDropper
-        const hex = prompt("Введите HEX цвет (например #34C759):", "#34C759");
-        return hex && hex.startsWith('#') ? hex : null;
+    // 🔍 Magnifier Loupe & Interactive Canvas Sampling
+    function startSampling(mode, message) {
+      if (!originalImageData) {
+        parent.postMessage({ pluginMessage: { type: "NOTIFY", text: "Сначала выберите слой с изображением" } }, "*");
+        return;
       }
+
+      samplingMode = mode;
+      previewWrapper.classList.remove("hidden");
+      isPreviewVisible = true;
+      previewWrapper.classList.add("sampling");
+      samplingBanner.style.display = "flex";
+      samplingBannerText.textContent = message || "Кликните в любую точку картинки для взятия цвета";
+
+      // Highlight active button
+      btnSampleSrcImage.classList.toggle("active", mode === 'src');
+      btnSampleRefImage.classList.toggle("active", mode === 'ref');
     }
 
-    // Eyedropper buttons for Color Match
-    document.getElementById("btn-pick-src").addEventListener("click", async () => {
-      const color = await pickScreenColor();
-      if (color) {
-        srcColorHex = color;
-        prevSrcColor.style.background = color;
-        hexSrcColor.textContent = color.toUpperCase();
-      }
+    function stopSampling() {
+      samplingMode = null;
+      previewWrapper.classList.remove("sampling");
+      samplingBanner.style.display = "none";
+      loupe.style.display = "none";
+      btnSampleSrcImage.classList.remove("active");
+      btnSampleRefImage.classList.remove("active");
+    }
+
+    btnCancelSampling.addEventListener("click", stopSampling);
+
+    btnSampleSrcImage.addEventListener("click", () => {
+      startSampling('src', 'Кликните на цвет, который хотите изменить (Исходный)');
     });
 
-    document.getElementById("btn-pick-ref").addEventListener("click", async () => {
-      const color = await pickScreenColor();
-      if (color) {
-        refColorHex = color;
-        prevRefColor.style.background = color;
-        hexRefColor.textContent = color.toUpperCase();
-      }
+    btnSampleRefImage.addEventListener("click", () => {
+      startSampling('ref', 'Кликните на желаемый цвет-образец на картинке');
     });
 
-    // Match Color Calculation Algorithm
-    document.getElementById("btn-match-apply").addEventListener("click", () => {
-      const srcRgb = hexToRgb(srcColorHex);
-      const refRgb = hexToRgb(refColorHex);
+    document.getElementById("btn-wb-picker").addEventListener("click", () => {
+      startSampling('wb', 'Кликните по нейтрально-серой точке на фото для баланса белого');
+    });
+
+    document.getElementById("btn-mixer-target").addEventListener("click", () => {
+      startSampling('mixer-target', 'Кликните по любому цвету на фото для выбора его канала');
+    });
+
+    // Canvas Mouse Movement & Loupe Rendering
+    canvas.addEventListener("mousemove", (e) => {
+      if (!samplingMode || !originalImageData) {
+        loupe.style.display = "none";
+        return;
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      const px = Math.floor((e.clientX - rect.left) * scaleX);
+      const py = Math.floor((e.clientY - rect.top) * scaleY);
+
+      if (px < 0 || px >= canvas.width || py < 0 || py >= canvas.height) {
+        loupe.style.display = "none";
+        return;
+      }
+
+      // Position loupe offset from cursor
+      const wrapperRect = previewWrapper.getBoundingClientRect();
+      let loupeX = e.clientX - wrapperRect.left + 15;
+      let loupeY = e.clientY - wrapperRect.top - 85;
+
+      if (loupeX + 80 > wrapperRect.width) loupeX = e.clientX - wrapperRect.left - 90;
+      if (loupeY < 10) loupeY = e.clientY - wrapperRect.top + 20;
+
+      loupe.style.left = loupeX + "px";
+      loupe.style.top = loupeY + "px";
+      loupe.style.display = "block";
+
+      // Draw 8x zoomed area onto loupe
+      const zoom = 8;
+      const sampleSize = Math.floor(76 / zoom);
+      const sx = Math.max(0, Math.min(canvas.width - sampleSize, px - Math.floor(sampleSize / 2)));
+      const sy = Math.max(0, Math.min(canvas.height - sampleSize, py - Math.floor(sampleSize / 2)));
+
+      loupeCtx.imageSmoothingEnabled = false;
+      loupeCtx.clearRect(0, 0, 76, 76);
+      loupeCtx.drawImage(canvas, sx, sy, sampleSize, sampleSize, 0, 0, 76, 76);
+
+      // Get pixel color under center
+      const pixel = ctx.getImageData(px, py, 1, 1).data;
+      const hex = rgbToHex(pixel[0], pixel[1], pixel[2]);
+      loupeBadge.textContent = hex;
+      loupeBadge.style.color = (pixel[0]*0.299 + pixel[1]*0.587 + pixel[2]*0.114) > 150 ? "#000" : "#fff";
+      loupeBadge.style.background = hex;
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+      loupe.style.display = "none";
+    });
+
+    // Canvas Click Sampling
+    canvas.addEventListener("click", (e) => {
+      if (!samplingMode || !originalImageData) return;
+
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+
+      const px = Math.floor((e.clientX - rect.left) * scaleX);
+      const py = Math.floor((e.clientY - rect.top) * scaleY);
+
+      if (px < 0 || px >= canvas.width || py < 0 || py >= canvas.height) return;
+
+      const pixel = ctx.getImageData(px, py, 1, 1).data;
+      const hex = rgbToHex(pixel[0], pixel[1], pixel[2]);
+
+      if (samplingMode === 'src') {
+        setSrcColor(hex);
+      } else if (samplingMode === 'ref') {
+        setRefColor(hex);
+      } else if (samplingMode === 'wb') {
+        applyWhiteBalanceFromSample(pixel[0], pixel[1], pixel[2]);
+      } else if (samplingMode === 'mixer-target') {
+        autoSelectChannelFromRgb(pixel[0], pixel[1], pixel[2]);
+      }
+
+      stopSampling();
+    });
+
+    function setSrcColor(hex) {
+      prevSrcColor.style.background = hex;
+      hexSrcColor.value = hex.toUpperCase();
+    }
+
+    function setRefColor(hex) {
+      prevRefColor.style.background = hex;
+      hexRefColor.value = hex.toUpperCase();
+    }
+
+    // Direct Hex Input Handlers
+    hexSrcColor.addEventListener("change", () => {
+      let val = hexSrcColor.value.trim();
+      if (!val.startsWith('#')) val = '#' + val;
+      if (/^#[0-9A-Fa-f]{6}$/.test(val)) setSrcColor(val);
+    });
+
+    hexRefColor.addEventListener("change", () => {
+      let val = hexRefColor.value.trim();
+      if (!val.startsWith('#')) val = '#' + val;
+      if (/^#[0-9A-Fa-f]{6}$/.test(val)) setRefColor(val);
+    });
+
+    // Native Color Dialog Pickers
+    prevSrcColor.addEventListener("click", () => {
+      nativePickSrc.value = hexSrcColor.value;
+      nativePickSrc.click();
+    });
+    nativePickSrc.addEventListener("input", (e) => setSrcColor(e.target.value));
+
+    prevRefColor.addEventListener("click", () => {
+      nativePickRef.value = hexRefColor.value;
+      nativePickRef.click();
+    });
+    nativePickRef.addEventListener("input", (e) => setRefColor(e.target.value));
+
+    // 🎯 Sample Color from Selected Layer on Figma Canvas!
+    btnSampleRefLayer.addEventListener("click", () => {
+      parent.postMessage({
+        pluginMessage: {
+          type: "GET_SELECTION_COLOR",
+          targetSlot: "ref"
+        }
+      }, "*");
+    });
+
+    // White balance calculation from sample
+    function applyWhiteBalanceFromSample(r, g, b) {
+      const tempDelta = Math.round(((r - b) / 255) * -100);
+      const tintDelta = Math.round(((g - (r + b) / 2) / 255) * -100);
+
+      filters.temp = Math.max(-100, Math.min(100, tempDelta));
+      filters.tint = Math.max(-100, Math.min(100, tintDelta));
+      wbSelect.value = "Custom";
+      syncUIToFilters();
+      renderFilteredPreview();
+      pushLiveCanvasUpdateNow();
+    }
+
+    // Auto select closest channel in Color Mixer
+    function autoSelectChannelFromRgb(r, g, b) {
+      const [h, s, l] = rgbToHsl(r, g, b);
+      let bestChannelIdx = 0;
+      let minDistance = 999;
+      for (let c = 0; c < 8; c++) {
+        const d = angularDist(h, CHANNELS[c].hue);
+        if (d < minDistance) {
+          minDistance = d;
+          bestChannelIdx = c;
+        }
+      }
+      activeChannelIdx = bestChannelIdx;
+      document.querySelectorAll(".swatch-btn").forEach(b => b.classList.remove("active"));
+      const btn = document.querySelector(`.swatch-btn[data-channel="${bestChannelIdx}"]`);
+      if (btn) btn.classList.add("active");
+      updateActiveChannelUI();
+    }
+
+    // ⚡ Calculate & Apply Match Color
+    btnMatchApply.addEventListener("click", () => {
+      const srcHex = hexSrcColor.value;
+      const refHex = hexRefColor.value;
+
+      const srcRgb = hexToRgb(srcHex);
+      const refRgb = hexToRgb(refHex);
 
       const [srcH, srcS, srcL] = rgbToHsl(srcRgb[0], srcRgb[1], srcRgb[2]);
       const [refH, refS, refL] = rgbToHsl(refRgb[0], refRgb[1], refRgb[2]);
@@ -1022,9 +1331,8 @@
         }
       }
 
-      // 2. Compute Hue shift required
+      // 2. Compute Hue shift
       const dHue = signedAngularDiff(refH, srcH);
-      // Map [-30..+30] degrees to [-100..+100] slider range
       const hueSlider = Math.max(-100, Math.min(100, Math.round((dHue / 30) * 100)));
 
       // 3. Compute Saturation delta
@@ -1040,7 +1348,6 @@
       filters.mixer[bestChannelIdx].sat = satSlider;
       filters.mixer[bestChannelIdx].lum = lumSlider;
 
-      // Select channel in UI
       activeChannelIdx = bestChannelIdx;
       document.querySelectorAll(".swatch-btn").forEach(b => b.classList.remove("active"));
       const btn = document.querySelector(`.swatch-btn[data-channel="${bestChannelIdx}"]`);
@@ -1052,28 +1359,10 @@
 
       // Show match info notification
       matchInfo.style.display = "block";
-      matchInfo.innerHTML = `✓ Подогнан канал <b>${CHANNELS[bestChannelIdx].name}</b>: Hue: ${hueSlider > 0 ? '+' : ''}${hueSlider}, Sat: ${satSlider > 0 ? '+' : ''}${satSlider}%, Lum: ${lumSlider > 0 ? '+' : ''}${lumSlider}%`;
+      matchInfo.innerHTML = `✓ Подогнан канал <b>${CHANNELS[bestChannelIdx].name}</b>:<br>Hue: <b>${hueSlider > 0 ? '+' : ''}${hueSlider}</b>, Sat: <b>${satSlider > 0 ? '+' : ''}${satSlider}%</b>, Lum: <b>${lumSlider > 0 ? '+' : ''}${lumSlider}%</b>`;
     });
 
-    // White Balance Eyedropper tool
-    document.getElementById("btn-wb-picker").addEventListener("click", async () => {
-      const color = await pickScreenColor();
-      if (color) {
-        const [r, g, b] = hexToRgb(color);
-        // Calculate temp & tint deviation from neutral gray
-        const tempDelta = Math.round(((r - b) / 255) * -100);
-        const tintDelta = Math.round(((g - (r + b) / 2) / 255) * -100);
-
-        filters.temp = Math.max(-100, Math.min(100, tempDelta));
-        filters.tint = Math.max(-100, Math.min(100, tintDelta));
-        wbSelect.value = "Custom";
-        syncUIToFilters();
-        renderFilteredPreview();
-        pushLiveCanvasUpdateNow();
-      }
-    });
-
-    // Preset pills
+    // Presets
     document.querySelectorAll(".preset-pill").forEach(pill => {
       pill.addEventListener("click", () => {
         document.querySelectorAll(".preset-pill").forEach(p => p.classList.remove("active"));
@@ -1131,7 +1420,7 @@
 
     document.getElementById("btn-reset").addEventListener("click", resetAllFilters);
 
-    // Compare original button (press and hold)
+    // Compare original
     btnCompare.addEventListener("mousedown", () => {
       isComparingOriginal = true;
       if (originalImageData) ctx.putImageData(originalImageData, 0, 0);
@@ -1235,7 +1524,7 @@
         if (!msg.hasImage) {
           currentNodeId = null;
           statusDot.className = "status-indicator inactive";
-          statusText.textContent = msg.message || "Выберите слой с изображением";
+          statusText.textContent = msg.message || "Выберите слой с картинкой";
           previewEmpty.style.display = "block";
           previewEmpty.textContent = msg.message || "Выберите слой с изображением на холсте Figma";
           canvas.style.display = "none";
@@ -1273,10 +1562,16 @@
 
           renderFilteredPreview();
         }
+      } else if (msg.type === "LAYER_COLOR_PICKED") {
+        if (msg.targetSlot === "ref") {
+          setRefColor(msg.hex);
+        } else {
+          setSrcColor(msg.hex);
+        }
       }
     };
 
-    // Apply Button (explicit save)
+    // Apply Button
     document.getElementById("btn-apply").addEventListener("click", () => {
       if (!currentNodeId || !originalImageData) {
         parent.postMessage({ pluginMessage: { type: "NOTIFY", text: "Сначала выберите слой с изображением" } }, "*");
