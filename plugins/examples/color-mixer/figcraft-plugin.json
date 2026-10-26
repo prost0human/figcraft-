@@ -1,0 +1,41 @@
+{
+  "id": "org.figcraft.plugins.color-mixer",
+  "name": "Color Mixer & Lightroom Adjust",
+  "version": "1.0.0",
+  "description": "Adjust raster images by color channels (HSL Color Mixer) and apply Lightroom-style photographic presets.",
+  "main": "color_mixer.wasm",
+  "api": 2,
+  "permissions": {
+    "access": "write",
+    "commands": ["image.adjust", "image.savePreset", "image.presets", "select.get"]
+  },
+  "commands": [
+    {
+      "id": "panel",
+      "label": "Color Mixer Panel…"
+    },
+    {
+      "id": "warm_sunset",
+      "label": "Preset: Warm Sunset"
+    },
+    {
+      "id": "cool_film",
+      "label": "Preset: Cool Film"
+    },
+    {
+      "id": "vivid_landscape",
+      "label": "Preset: Vivid Landscape"
+    },
+    {
+      "id": "custom",
+      "label": "Custom Channel Adjust…",
+      "params": [
+        { "name": "channel", "label": "Channel", "type": "select", "options": ["Red", "Orange", "Yellow", "Green", "Aqua", "Blue", "Purple", "Magenta"], "default": "Red" },
+        { "name": "hue", "label": "Hue Shift (-100..100)", "type": "number", "default": 0, "min": -100, "max": 100 },
+        { "name": "saturation", "label": "Saturation (-100..100)", "type": "number", "default": 0, "min": -100, "max": 100 },
+        { "name": "luminance", "label": "Luminance (-100..100)", "type": "number", "default": 0, "min": -100, "max": 100 },
+        { "name": "vibrance", "label": "Global Vibrance (-100..100)", "type": "number", "default": 0, "min": -100, "max": 100 }
+      ]
+    }
+  ]
+}

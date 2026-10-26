@@ -141,3 +141,29 @@ fn to_css_round_trips_every_alpha() {
         assert_eq!(Color::parse_css(&c.to_css()).unwrap().to_rgba8(), c.to_rgba8(), "alpha {a}: {}", c.to_css());
     }
 }
+
+#[test]
+fn color_mixer_channels_and_sanitization() {
+    use crate::{ChannelAdjustment, ColorMixer, ImageFilters};
+    let mut mixer = ColorMixer::NONE;
+    assert!(mixer.is_identity());
+    mixer.red.hue = 0.5;
+    assert!(!mixer.is_identity());
+    assert_eq!(mixer.channel(0).hue, 0.5);
+    assert_eq!(mixer.channel_by_name("red").map(|c| c.hue), Some(0.5));
+    assert_eq!(mixer.channel_by_name("CYAN").map(|c| c.hue), Some(0.0));
+
+    let junk = ColorMixer {
+        red: ChannelAdjustment { hue: f32::NAN, saturation: 5.0, luminance: -3.0 },
+        ..ColorMixer::NONE
+    }
+    .sanitized();
+    assert_eq!(junk.red.hue, 0.0);
+    assert_eq!(junk.red.saturation, 1.0);
+    assert_eq!(junk.red.luminance, -1.0);
+
+    let f = ImageFilters::default();
+    assert!(f.is_identity());
+    assert_eq!(f.vibrance, 0.0);
+    assert!(f.mixer.is_identity());
+}

@@ -13,7 +13,7 @@ use figcraft_color::{ColorProfile, ImageFilters, PaintKind};
 use figcraft_doc::{Document, ImageData, NodeId};
 use tiny_skia::Pixmap;
 
-pub(crate) type Key = (String, [i32; 7], ColorProfile);
+pub(crate) type Key = (String, [i32; 32], ColorProfile);
 
 /// The largest side of a decoded image: larger images are scaled down to fit.
 const MAX_SIDE: u32 = 16_384;
@@ -78,9 +78,24 @@ fn cache() -> &'static Mutex<PixmapCache> {
     C.get_or_init(|| Mutex::new(PixmapCache::default()))
 }
 
-fn fkey(f: &ImageFilters) -> [i32; 7] {
+fn fkey(f: &ImageFilters) -> [i32; 32] {
     let q = |v: f32| (v * 1000.0).round() as i32;
-    [q(f.exposure), q(f.contrast), q(f.saturation), q(f.temperature), q(f.tint), q(f.highlights), q(f.shadows)]
+    let mut k = [0i32; 32];
+    k[0] = q(f.exposure);
+    k[1] = q(f.contrast);
+    k[2] = q(f.saturation);
+    k[3] = q(f.temperature);
+    k[4] = q(f.tint);
+    k[5] = q(f.highlights);
+    k[6] = q(f.shadows);
+    k[7] = q(f.vibrance);
+    for i in 0..8 {
+        let ch = f.mixer.channel(i);
+        k[8 + i * 3] = q(ch.hue);
+        k[8 + i * 3 + 1] = q(ch.saturation);
+        k[8 + i * 3 + 2] = q(ch.luminance);
+    }
+    k
 }
 
 /// Decode encoded image bytes into a premultiplied sRGB pixmap (scaled down to 16k per side).
@@ -322,7 +337,7 @@ pub fn animation_clock(doc: &Document, root: NodeId, t: f64) -> Option<(u64, f64
 }
 
 /// Image adjustments (approximations of exposure, contrast, saturation, temperature, tint,
-/// highlights and shadows) on a premultiplied pixmap.
+/// highlights, shadows, vibrance, and HSL channel color mixer) on a premultiplied pixmap.
 pub fn apply_filters(p: &mut Pixmap, f: &ImageFilters) {
     let exposure = 2f32.powf(f.exposure.clamp(-1.0, 1.0) * 2.0);
     let contrast = 1.0 + f.contrast.clamp(-1.0, 1.0);
@@ -331,6 +346,9 @@ pub fn apply_filters(p: &mut Pixmap, f: &ImageFilters) {
     let tint = f.tint.clamp(-1.0, 1.0) * 0.15;
     let hi = f.highlights.clamp(-1.0, 1.0) * 0.3;
     let sh = f.shadows.clamp(-1.0, 1.0) * 0.3;
+    let vib = f.vibrance.clamp(-1.0, 1.0);
+    let has_mixer = !f.mixer.is_identity();
+    let has_hsl = has_mixer || vib != 0.0;
     for px in p.data_mut().as_chunks_mut::<4>().0 {
         let a = f32::from(px.get(3).copied().unwrap_or(0)) / 255.0;
         if a <= 0.0 {
@@ -356,6 +374,104 @@ pub fn apply_filters(p: &mut Pixmap, f: &ImageFilters) {
         r += adj;
         g += adj;
         b += adj;
+
+        if has_hsl {
+            let cr = r.clamp(0.0, 1.0);
+            let cg = g.clamp(0.0, 1.0);
+            let cb = b.clamp(0.0, 1.0);
+            let max = cr.max(cg).max(cb);
+            let min = cr.min(cg).min(cb);
+            let d = max - min;
+            let mut lightness = (max + min) * 0.5;
+            let mut saturation = if d <= 0.0 {
+                0.0
+            } else {
+                (d / (1.0 - (2.0 * lightness - 1.0).abs()).max(1e-6)).clamp(0.0, 1.0)
+            };
+            let mut hue = if d <= 0.0 {
+                0.0
+            } else if (max - cr).abs() < f32::EPSILON {
+                60.0 * (((cg - cb) / d) % 6.0)
+            } else if (max - cg).abs() < f32::EPSILON {
+                60.0 * ((cb - cr) / d + 2.0)
+            } else {
+                60.0 * ((cr - cg) / d + 4.0)
+            };
+            if hue < 0.0 {
+                hue += 360.0;
+            }
+
+            if vib != 0.0 {
+                if vib > 0.0 {
+                    saturation += (1.0 - saturation) * vib * (1.0 - saturation);
+                } else {
+                    saturation *= 1.0 + vib;
+                }
+                saturation = saturation.clamp(0.0, 1.0);
+            }
+
+            if has_mixer && saturation > 0.001 {
+                let (i1, i2, t) = if hue >= 320.0 {
+                    (7, 0, (hue - 320.0) / 40.0)
+                } else if hue < 30.0 {
+                    (0, 1, hue / 30.0)
+                } else if hue < 60.0 {
+                    (1, 2, (hue - 30.0) / 30.0)
+                } else if hue < 120.0 {
+                    (2, 3, (hue - 60.0) / 60.0)
+                } else if hue < 180.0 {
+                    (3, 4, (hue - 120.0) / 60.0)
+                } else if hue < 240.0 {
+                    (4, 5, (hue - 180.0) / 60.0)
+                } else if hue < 280.0 {
+                    (5, 6, (hue - 240.0) / 40.0)
+                } else {
+                    (6, 7, (hue - 280.0) / 40.0)
+                };
+
+                let s = t * t * (3.0 - 2.0 * t);
+                let w1 = 1.0 - s;
+                let w2 = s;
+
+                let ch1 = f.mixer.channel(i1);
+                let ch2 = f.mixer.channel(i2);
+
+                let d_hue = (w1 * ch1.hue + w2 * ch2.hue) * 30.0;
+                let d_sat = w1 * ch1.saturation + w2 * ch2.saturation;
+                let d_lum = w1 * ch1.luminance + w2 * ch2.luminance;
+
+                hue = (hue + d_hue).rem_euclid(360.0);
+
+                if d_sat < 0.0 {
+                    saturation = (saturation * (1.0 + d_sat)).clamp(0.0, 1.0);
+                } else {
+                    saturation = (saturation + (1.0 - saturation) * d_sat).clamp(0.0, 1.0);
+                }
+
+                let lum_factor = d_lum * 0.5 * saturation;
+                if lum_factor < 0.0 {
+                    lightness = (lightness * (1.0 + lum_factor)).clamp(0.0, 1.0);
+                } else {
+                    lightness = (lightness + (1.0 - lightness) * lum_factor).clamp(0.0, 1.0);
+                }
+            }
+
+            let c = (1.0 - (2.0 * lightness - 1.0).abs()) * saturation;
+            let x = c * (1.0 - ((hue / 60.0) % 2.0 - 1.0).abs());
+            let m = lightness - c * 0.5;
+            let (sr, sg, sb) = match (hue / 60.0) as u32 {
+                0 => (c, x, 0.0),
+                1 => (x, c, 0.0),
+                2 => (0.0, c, x),
+                3 => (0.0, x, c),
+                4 => (x, 0.0, c),
+                _ => (c, 0.0, x),
+            };
+            r = sr + m;
+            g = sg + m;
+            b = sb + m;
+        }
+
         let q = |c: f32| (c.clamp(0.0, 1.0) * a * 255.0).round() as u8;
         let (qr, qg, qb) = (q(r), q(g), q(b));
         if let Some(s) = px.get_mut(0..3) {

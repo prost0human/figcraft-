@@ -344,6 +344,143 @@ pub enum ImageScaleMode {
     Tile,
 }
 
+/// Adjustments for one colour channel in the colour mixer (all `-1..=1`, 0 = unchanged).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ChannelAdjustment {
+    pub hue: f32,
+    pub saturation: f32,
+    pub luminance: f32,
+}
+
+impl ChannelAdjustment {
+    pub const NONE: Self = Self { hue: 0.0, saturation: 0.0, luminance: 0.0 };
+
+    pub fn is_identity(&self) -> bool {
+        *self == Self::NONE
+    }
+
+    pub fn sanitized(self) -> Self {
+        let c = |v: f32| if v.is_finite() { v.clamp(-1.0, 1.0) } else { 0.0 };
+        Self {
+            hue: c(self.hue),
+            saturation: c(self.saturation),
+            luminance: c(self.luminance),
+        }
+    }
+}
+
+/// Per-channel colour adjustments (Lightroom-style HSL Color Mixer: Red, Orange, Yellow, Green, Aqua, Blue, Purple, Magenta).
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[serde(default)]
+pub struct ColorMixer {
+    pub red: ChannelAdjustment,
+    pub orange: ChannelAdjustment,
+    pub yellow: ChannelAdjustment,
+    pub green: ChannelAdjustment,
+    pub aqua: ChannelAdjustment,
+    pub blue: ChannelAdjustment,
+    pub purple: ChannelAdjustment,
+    pub magenta: ChannelAdjustment,
+}
+
+impl ColorMixer {
+    pub const NONE: Self = Self {
+        red: ChannelAdjustment::NONE,
+        orange: ChannelAdjustment::NONE,
+        yellow: ChannelAdjustment::NONE,
+        green: ChannelAdjustment::NONE,
+        aqua: ChannelAdjustment::NONE,
+        blue: ChannelAdjustment::NONE,
+        purple: ChannelAdjustment::NONE,
+        magenta: ChannelAdjustment::NONE,
+    };
+
+    pub const CHANNEL_NAMES: [&'static str; 8] = [
+        "Red",
+        "Orange",
+        "Yellow",
+        "Green",
+        "Aqua",
+        "Blue",
+        "Purple",
+        "Magenta",
+    ];
+
+    pub fn is_identity(&self) -> bool {
+        *self == Self::NONE
+    }
+
+    pub fn sanitized(self) -> Self {
+        Self {
+            red: self.red.sanitized(),
+            orange: self.orange.sanitized(),
+            yellow: self.yellow.sanitized(),
+            green: self.green.sanitized(),
+            aqua: self.aqua.sanitized(),
+            blue: self.blue.sanitized(),
+            purple: self.purple.sanitized(),
+            magenta: self.magenta.sanitized(),
+        }
+    }
+
+    pub fn channel(&self, index: usize) -> ChannelAdjustment {
+        match index {
+            0 => self.red,
+            1 => self.orange,
+            2 => self.yellow,
+            3 => self.green,
+            4 => self.aqua,
+            5 => self.blue,
+            6 => self.purple,
+            7 => self.magenta,
+            _ => ChannelAdjustment::NONE,
+        }
+    }
+
+    pub fn channel_mut(&mut self, index: usize) -> Option<&mut ChannelAdjustment> {
+        match index {
+            0 => Some(&mut self.red),
+            1 => Some(&mut self.orange),
+            2 => Some(&mut self.yellow),
+            3 => Some(&mut self.green),
+            4 => Some(&mut self.aqua),
+            5 => Some(&mut self.blue),
+            6 => Some(&mut self.purple),
+            7 => Some(&mut self.magenta),
+            _ => None,
+        }
+    }
+
+    pub fn channel_by_name(&self, name: &str) -> Option<ChannelAdjustment> {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "red" => Some(self.red),
+            "orange" => Some(self.orange),
+            "yellow" => Some(self.yellow),
+            "green" => Some(self.green),
+            "aqua" | "cyan" => Some(self.aqua),
+            "blue" => Some(self.blue),
+            "purple" => Some(self.purple),
+            "magenta" => Some(self.magenta),
+            _ => None,
+        }
+    }
+
+    pub fn channel_mut_by_name(&mut self, name: &str) -> Option<&mut ChannelAdjustment> {
+        match name.trim().to_ascii_lowercase().as_str() {
+            "red" => Some(&mut self.red),
+            "orange" => Some(&mut self.orange),
+            "yellow" => Some(&mut self.yellow),
+            "green" => Some(&mut self.green),
+            "aqua" | "cyan" => Some(&mut self.aqua),
+            "blue" => Some(&mut self.blue),
+            "purple" => Some(&mut self.purple),
+            "magenta" => Some(&mut self.magenta),
+            _ => None,
+        }
+    }
+}
+
 /// Image adjustments (all `-1..=1`, 0 = unchanged).
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize, Default)]
 #[serde(default)]
@@ -355,6 +492,8 @@ pub struct ImageFilters {
     pub tint: f32,
     pub highlights: f32,
     pub shadows: f32,
+    pub vibrance: f32,
+    pub mixer: ColorMixer,
 }
 
 impl ImageFilters {
@@ -374,8 +513,17 @@ impl ImageFilters {
     ];
 
     /// No adjustment (a `const` [`Default`]).
-    pub const NONE: ImageFilters =
-        ImageFilters { exposure: 0.0, contrast: 0.0, saturation: 0.0, temperature: 0.0, tint: 0.0, highlights: 0.0, shadows: 0.0 };
+    pub const NONE: ImageFilters = ImageFilters {
+        exposure: 0.0,
+        contrast: 0.0,
+        saturation: 0.0,
+        temperature: 0.0,
+        tint: 0.0,
+        highlights: 0.0,
+        shadows: 0.0,
+        vibrance: 0.0,
+        mixer: ColorMixer::NONE,
+    };
 
     /// The built-in preset `name` (its id or label, ignoring case, spaces, `-`, `_` and `&`).
     pub fn preset(name: &str) -> Option<ImageFilters> {
@@ -395,6 +543,8 @@ impl ImageFilters {
             tint: c(self.tint),
             highlights: c(self.highlights),
             shadows: c(self.shadows),
+            vibrance: c(self.vibrance),
+            mixer: self.mixer.sanitized(),
         }
     }
 }

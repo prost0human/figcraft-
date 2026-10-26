@@ -13,7 +13,7 @@ pub fn specs() -> Vec<CommandSpec> {
         spec!(
             "image.adjust",
             "Adjust image",
-            "{ids?, target? (fill|stroke, default fill), index? (default every image paint), preset? (vivid|muted|warm|cool|blackAndWhite|fade|reset, or the name of a preset saved in the file), filters? ({exposure, contrast, saturation, temperature, tint, highlights, shadows}: each -1..1, applied over the preset)}  sets the adjustments of the layers' image paints; returns {changed}",
+            "{ids?, target? (fill|stroke, default fill), index? (default every image paint), preset? (vivid|muted|warm|cool|blackAndWhite|fade|reset, or the name of a preset saved in the file), filters? ({exposure, contrast, saturation, temperature, tint, highlights, shadows, vibrance, mixer}: each -1..1, applied over the preset)}  sets the adjustments of the layers' image paints; returns {changed}",
             true,
             adjust
         ),
@@ -65,6 +65,36 @@ fn with_values(cmd: &str, base: ImageFilters, v: &Value) -> Result<ImageFilters>
     let Value::Object(m) = v else { return Err(bad(cmd, "filters: an object of adjustments")) };
     let mut f = base;
     for (k, val) in m {
+        if k == "mixer" {
+            let Value::Object(mixer_map) = val else { return Err(bad(cmd, "filters.mixer: an object of channel adjustments")) };
+            for (ch_name, ch_val) in mixer_map {
+                let ch = f.mixer.channel_mut_by_name(ch_name).ok_or_else(|| bad(cmd, format!("unknown mixer channel `{ch_name}`")))?;
+                let Value::Object(adj_map) = ch_val else { return Err(bad(cmd, format!("filters.mixer.{ch_name}: an object of adjustments"))) };
+                for (prop, num_val) in adj_map {
+                    let x = f64_of(num_val).ok_or_else(|| bad(cmd, format!("filters.mixer.{ch_name}.{prop}: a number")))? as f32;
+                    match prop.as_str() {
+                        "hue" => ch.hue = x,
+                        "saturation" => ch.saturation = x,
+                        "luminance" => ch.luminance = x,
+                        _ => return Err(bad(cmd, format!("unknown channel adjustment `{prop}`"))),
+                    }
+                }
+            }
+            continue;
+        }
+        if let Some(ch) = f.mixer.channel_mut_by_name(k) {
+            let Value::Object(adj_map) = val else { return Err(bad(cmd, format!("filters.{k}: an object of adjustments"))) };
+            for (prop, num_val) in adj_map {
+                let x = f64_of(num_val).ok_or_else(|| bad(cmd, format!("filters.{k}.{prop}: a number")))? as f32;
+                match prop.as_str() {
+                    "hue" => ch.hue = x,
+                    "saturation" => ch.saturation = x,
+                    "luminance" => ch.luminance = x,
+                    _ => return Err(bad(cmd, format!("unknown channel adjustment `{prop}`"))),
+                }
+            }
+            continue;
+        }
         let x = f64_of(val).ok_or_else(|| bad(cmd, format!("filters.{k}: a number")))? as f32;
         let slot = match k.as_str() {
             "exposure" => &mut f.exposure,
@@ -74,6 +104,7 @@ fn with_values(cmd: &str, base: ImageFilters, v: &Value) -> Result<ImageFilters>
             "tint" => &mut f.tint,
             "highlights" => &mut f.highlights,
             "shadows" => &mut f.shadows,
+            "vibrance" => &mut f.vibrance,
             _ => return Err(bad(cmd, format!("unknown adjustment `{k}`"))),
         };
         *slot = x;

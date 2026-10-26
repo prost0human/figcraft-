@@ -215,6 +215,8 @@ fn image(cx: &mut Ctx, p: &Value) -> ImagePaint {
             tint: 0.0 - filter("tint"),
             highlights: filter("highlights"),
             shadows: filter("shadows"),
+            vibrance: filter("vibrance"),
+            ..ImageFilters::NONE
         },
     }
 }
