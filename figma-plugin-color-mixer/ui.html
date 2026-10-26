@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lightroom Color Mixer</title>
+  <style>
+    :root {
+      --bg: #2c2c2c;
+      --bg-panel: #222222;
+      --bg-input: #1e1e1e;
+      --bg-hover: #383838;
+      --border: #3e3e3e;
+      --text: #ffffff;
+      --text-muted: #8e8e8e;
+      --accent: #0d99ff;
+      --accent-hover: #0080e6;
+      --font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-family);
+      font-size: 11px;
+      line-height: 1.4;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* Top Layer Status */
+    .status-bar {
+      padding: 8px 12px;
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .status-left {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .status-indicator {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #34c759;
+      flex-shrink: 0;
+    }
+    .status-indicator.inactive { background: #ff9500; }
+    .status-text { font-weight: 500; color: #fff; max-width: 200px; overflow: hidden; text-overflow: ellipsis; }
+
+    /* Scrollable Content */
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-bottom: 12px;
+    }
+    .content::-webkit-scrollbar { width: 6px; }
+    .content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Preview Canvas Area */
+    .preview-box {
+      margin: 10px 12px 6px;
+      background: #181818;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 120px;
+      position: relative;
+      overflow: hidden;
+    }
+    .preview-box canvas {
+      max-width: 100%;
+      max-height: 160px;
+      display: block;
+      object-fit: contain;
+    }
+    .preview-empty {
+      color: var(--text-muted);
+      text-align: center;
+      padding: 24px 12px;
+    }
+    .compare-btn {
+      position: absolute;
+      bottom: 6px;
+      right: 6px;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #fff;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      cursor: pointer;
+    }
+
+    /* Collapsible Sections */
+    .section {
+      border-bottom: 1px solid var(--border);
+    }
+    .section-header {
+      padding: 8px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      color: #eaeaea;
+    }
+    .section-header:hover { background: var(--bg-hover); }
+    .section-title-wrap { display: flex; align-items: center; gap: 6px; }
+    .chevron { transition: transform 0.2s; }
+    .section.collapsed .chevron { transform: rotate(-90deg); }
+    .section.collapsed .section-body { display: none; }
+    .section-body { padding: 8px 12px 12px; }
+
+    /* Presets Quick Bar */
+    .presets-bar {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 6px 12px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .presets-bar::-webkit-scrollbar { display: none; }
+    .preset-pill {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 3px 10px;
+      white-space: nowrap;
+      cursor: pointer;
+      font-size: 10px;
+      color: #bbb;
+      transition: all 0.15s;
+    }
+    .preset-pill:hover { background: var(--bg-hover); color: #fff; border-color: #555; }
+    .preset-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+    /* Rows & Controls */
+    .row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    .row:last-child { margin-bottom: 0; }
+    .control-label {
+      color: var(--text-muted);
+      font-size: 11px;
+      width: 72px;
+      flex-shrink: 0;
+    }
+
+    .wb-controls {
+      display: flex;
+      gap: 6px;
+      flex: 1;
+    }
+    .wb-select {
+      flex: 1;
+      background: var(--bg-input);
+      color: #fff;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 4px 6px;
+      font-size: 11px;
+      outline: none;
+    }
+    .tool-btn {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: #fff;
+      border-radius: 4px;
+      width: 24px;
+      height: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .tool-btn:hover { background: var(--bg-hover); }
+
+    /* Slider Row */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 7px;
+    }
+    .slider-label {
+      width: 68px;
+      color: var(--text-muted);
+      font-size: 11px;
+      flex-shrink: 0;
+    }
+    .slider-container {
+      flex: 1;
+      position: relative;
+      height: 16px;
+      display: flex;
+      align-items: center;
+    }
+    .slider-input {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 6px;
+      border-radius: 3px;
+      outline: none;
+      background: transparent;
+      position: relative;
+      z-index: 2;
+      cursor: pointer;
+    }
+    .slider-input::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #ffffff;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.6);
+      cursor: pointer;
+      border: 1px solid #111;
+      transition: transform 0.1s;
+    }
+    .slider-input::-webkit-slider-thumb:hover { transform: scale(1.15); }
+    .slider-track {
+      position: absolute;
+      top: 5px;
+      left: 0;
+      right: 0;
+      height: 6px;
+      border-radius: 3px;
+      z-index: 1;
+      pointer-events: none;
+    }
+    .slider-val {
+      width: 32px;
+      text-align: right;
+      color: #fff;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Specific Slider Track Gradients */
+    .track-temp { background: linear-gradient(90deg, #0055ff, #808080 50%, #ffaa00); }
+    .track-tint { background: linear-gradient(90deg, #00d665, #808080 50%, #ea00d6); }
+    .track-vibrance { background: linear-gradient(90deg, #707070, #9a6575 50%, #ff2b55); }
+    .track-saturation { background: linear-gradient(90deg, #666666, #ff2222); }
+
+    /* Color Mixer Swatches */
+    .swatches-grid {
+      display: flex;
+      justify-content: space-between;
+      margin: 4px 0 10px;
+      padding: 0 2px;
+    }
+    .swatch-btn {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      background: transparent;
+      cursor: pointer;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.15s;
+    }
+    .swatch-btn:hover { transform: scale(1.15); }
+    .swatch-btn .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    }
+    .swatch-btn.active {
+      border-color: #ffffff;
+    }
+    .swatch-btn.active .dot::after {
+      content: '';
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: #ffffff;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    /* Mode Segmented Switch */
+    .mode-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+    .segmented {
+      display: flex;
+      flex: 1;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 2px;
+    }
+    .segment {
+      flex: 1;
+      text-align: center;
+      padding: 4px 0;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 10px;
+      color: var(--text-muted);
+      transition: all 0.15s;
+    }
+    .segment:hover { color: #fff; }
+    .segment.active { background: #3e3e3e; color: #fff; font-weight: 500; }
+
+    /* Action Footer */
+    .footer {
+      padding: 10px 12px;
+      background: var(--bg-panel);
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 8px;
+    }
+    .btn {
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: var(--bg-input);
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      transition: all 0.15s;
+    }
+    .btn:hover { background: var(--bg-hover); }
+    .btn-primary {
+      flex: 1;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-danger:hover { color: #ff5555; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Status -->
+  <div class="status-bar">
+    <div class="status-left">
+      <span class="status-indicator" id="status-dot"></span>
+      <span class="status-text" id="status-text">Detecting selection…</span>
+    </div>
+    <span style="color:var(--text-muted); font-size:10px;">Lightroom Color</span>
+  </div>
+
+  <!-- Presets Quick Bar -->
+  <div class="presets-bar">
+    <div class="preset-pill active" data-preset="Default">Default</div>
+    <div class="preset-pill" data-preset="Warm Sunset">Warm Sunset</div>
+    <div class="preset-pill" data-preset="Cool Film">Cool Film</div>
+    <div class="preset-pill" data-preset="Vivid Landscape">Vivid Landscape</div>
+    <div class="preset-pill" data-preset="Moody Teal">Moody Teal</div>
+    <div class="preset-pill" data-preset="Clean Portrait">Clean Portrait</div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+
+    <!-- Preview Canvas Area -->
+    <div class="preview-box">
+      <div class="preview-empty" id="preview-empty">Select a shape with an image fill in Figma to edit</div>
+      <canvas id="preview-canvas" style="display:none;"></canvas>
+      <button class="compare-btn" id="btn-compare" style="display:none;">Hold: Original</button>
+    </div>
+
+    <!-- Section: Color (White Balance & Tone) -->
+    <div class="section" id="sec-color">
+      <div class="section-header" onclick="toggleSection('sec-color')">
+        <div class="section-title-wrap">
+          <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          <span>Color & White Balance</span>
+        </div>
+      </div>
+      <div class="section-body">
+        <div class="row">
+          <span class="control-label">White Balance</span>
+          <div class="wb-controls">
+            <select class="wb-select" id="wb-select">
+              <option value="As Shot">As Shot</option>
+              <option value="Auto">Auto</option>
+              <option value="Daylight">Daylight (5500K)</option>
+              <option value="Cloudy">Cloudy (6500K)</option>
+              <option value="Shade">Shade (7500K)</option>
+              <option value="Tungsten">Tungsten (3200K)</option>
+              <option value="Fluorescent">Fluorescent (4000K)</option>
+              <option value="Flash">Flash</option>
+              <option value="Custom">Custom</option>
+            </select>
+            <button class="tool-btn" id="btn-eyedropper" title="White Balance Picker">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2l4 4-2.5 2.5-4-4L14 2z"/><path d="M11.5 6.5l-8 8a2.12 2.12 0 0 0-.5 1.5V19h3a2.12 2.12 0 0 0 1.5-.5l8-8-4-4z"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="slider-row">
+          <span class="slider-label">Temp</span>
+          <div class="slider-container">
+            <div class="slider-track track-temp"></div>
+            <input type="range" class="slider-input" id="sl-temp" min="-100" max="100" value="0">
+          </div>
+          <span class="slider-val" id="val-temp">0</span>
+        </div>
+
+        <div class="slider-row">
+          <span class="slider-label">Tint</span>
+          <div class="slider-container">
+            <div class="slider-track track-tint"></div>
+            <input type="range" class="slider-input" id="sl-tint" min="-100" max="100" value="0">
+          </div>
+          <span class="slider-val" id="val-tint">0</span>
+        </div>
+
+        <div class="slider-row">
+          <span class="slider-label">Vibrance</span>
+          <div class="slider-container">
+            <div class="slider-track track-vibrance"></div>
+            <input type="range" class="slider-input" id="sl-vibrance" min="-100" max="100" value="0">
+          </div>
+          <span class="slider-val" id="val-vibrance">0</span>
+        </div>
+
+        <div class="slider-row">
+          <span class="slider-label">Saturation</span>
+          <div class="slider-container">
+            <div class="slider-track track-saturation"></div>
+            <input type="range" class="slider-input" id="sl-saturation" min="-100" max="100" value="0">
+          </div>
+          <span class="slider-val" id="val-saturation">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Section: Color Mixer -->
+    <div class="section" id="sec-mixer">
+      <div class="section-header" onclick="toggleSection('sec-mixer')">
+        <div class="section-title-wrap">
+          <svg class="chevron" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+          <span>Color Mixer</span>
+        </div>
+        <span style="color:var(--text-muted); font-size:10px;" id="lbl-active-channel">Red Channel</span>
+      </div>
+      <div class="section-body">
+
+        <!-- 8 Channel Swatches -->
+        <div class="swatches-grid">
+          <button class="swatch-btn active" data-channel="0" title="Red"><span class="dot" style="background:#ff2d55;"></span></button>
+          <button class="swatch-btn" data-channel="1" title="Orange"><span class="dot" style="background:#ff9500;"></span></button>
+          <button class="swatch-btn" data-channel="2" title="Yellow"><span class="dot" style="background:#ffcc00;"></span></button>
+          <button class="swatch-btn" data-channel="3" title="Green"><span class="dot" style="background:#34c759;"></span></button>
+          <button class="swatch-btn" data-channel="4" title="Aqua"><span class="dot" style="background:#30b0c7;"></span></button>
+          <button class="swatch-btn" data-channel="5" title="Blue"><span class="dot" style="background:#007aff;"></span></button>
+          <button class="swatch-btn" data-channel="6" title="Purple"><span class="dot" style="background:#af52de;"></span></button>
+          <button class="swatch-btn" data-channel="7" title="Magenta"><span class="dot" style="background:#ff2d88;"></span></button>
+        </div>
+
+        <!-- Mode Bar: Target Tool & HSL Segments -->
+        <div class="mode-bar">
+          <button class="tool-btn" title="Target Adjustment Tool">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+          </button>
+          <div class="segmented">
+            <div class="segment active" data-mode="all">All</div>
+            <div class="segment" data-mode="hue">Hue</div>
+            <div class="segment" data-mode="sat">Saturation</div>
+            <div class="segment" data-mode="lum">Luminance</div>
+          </div>
+        </div>
+
+        <!-- Channel Sliders -->
+        <div class="slider-row" id="row-ch-hue">
+          <span class="slider-label" id="lbl-ch-hue">Red Hue</span>
+          <div class="slider-container">
+            <div class="slider-track" id="track-ch-hue"></div>
+            <input type="range" class="slider-input" id="sl-ch-hue" min="-100" max="100" value="0">
+          </div>
+          <span class="slider-val" id="val-ch-hue">0</span>
+        </div>
+
+        <div class="slider-row" id="row-ch-sat">
+          <span class="slider-label" id="lbl-ch-sat">Red Sat</span>
+          <div class="slider-container">
+            <div class="slider-track" id="track-ch-sat"></div>
+            <input type="range" class="slider-input" id="sl-ch-sat" min="-100" max="100" value="0">
+          </div>
+          <span class="slider-val" id="val-ch-sat">0</span>
+        </div>
+
+        <div class="slider-row" id="row-ch-lum">
+          <span class="slider-label" id="lbl-ch-lum">Red Lum</span>
+          <div class="slider-container">
+            <div class="slider-track" id="track-ch-lum"></div>
+            <input type="range" class="slider-input" id="sl-ch-lum" min="-100" max="100" value="0">
+          </div>
+          <span class="slider-val" id="val-ch-lum">0</span>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Footer Actions -->
+  <div class="footer">
+    <button class="btn btn-danger" id="btn-restore" title="Revert to original image">Revert</button>
+    <button class="btn" id="btn-reset" title="Reset all sliders to 0">Reset</button>
+    <button class="btn btn-primary" id="btn-apply">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+      Apply to Figma
+    </button>
+  </div>
+
+  <script>
+    // Channel definitions
+    const CHANNELS = [
+      { name: "Red", hue: 0, hex: "#ff2d55", gradHue: "linear-gradient(90deg, #ff00ff, #ff2d55, #ff9500)" },
+      { name: "Orange", hue: 30, hex: "#ff9500", gradHue: "linear-gradient(90deg, #ff2d55, #ff9500, #ffcc00)" },
+      { name: "Yellow", hue: 60, hex: "#ffcc00", gradHue: "linear-gradient(90deg, #ff9500, #ffcc00, #34c759)" },
+      { name: "Green", hue: 120, hex: "#34c759", gradHue: "linear-gradient(90deg, #ffcc00, #34c759, #30b0c7)" },
+      { name: "Aqua", hue: 180, hex: "#30b0c7", gradHue: "linear-gradient(90deg, #34c759, #30b0c7, #007aff)" },
+      { name: "Blue", hue: 240, hex: "#007aff", gradHue: "linear-gradient(90deg, #30b0c7, #007aff, #af52de)" },
+      { name: "Purple", hue: 275, hex: "#af52de", gradHue: "linear-gradient(90deg, #007aff, #af52de, #ff2d88)" },
+      { name: "Magenta", hue: 310, hex: "#ff2d88", gradHue: "linear-gradient(90deg, #af52de, #ff2d88, #ff2d55)" },
+    ];
+
+    // State
+    let activeChannelIdx = 0;
+    let activeMode = "all";
+    let currentNodeId = null;
+    let originalImageBitmap = null;
+    let originalImageData = null;
+    let isComparingOriginal = false;
+
+    // Filters Model
+    let filters = {
+      temp: 0,
+      tint: 0,
+      vibrance: 0,
+      saturation: 0,
+      mixer: [
+        { hue: 0, sat: 0, lum: 0 },
+        { hue: 0, sat: 0, lum: 0 },
+        { hue: 0, sat: 0, lum: 0 },
+        { hue: 0, sat: 0, lum: 0 },
+        { hue: 0, sat: 0, lum: 0 },
+        { hue: 0, sat: 0, lum: 0 },
+        { hue: 0, sat: 0, lum: 0 },
+        { hue: 0, sat: 0, lum: 0 },
+      ]
+    };
+
+    // UI elements
+    const statusDot = document.getElementById("status-dot");
+    const statusText = document.getElementById("status-text");
+    const previewEmpty = document.getElementById("preview-empty");
+    const canvas = document.getElementById("preview-canvas");
+    const ctx = canvas.getContext("2d");
+    const btnCompare = document.getElementById("btn-compare");
+    const slTemp = document.getElementById("sl-temp");
+    const slTint = document.getElementById("sl-tint");
+    const slVibrance = document.getElementById("sl-vibrance");
+    const slSaturation = document.getElementById("sl-saturation");
+    const valTemp = document.getElementById("val-temp");
+    const valTint = document.getElementById("val-tint");
+    const valVibrance = document.getElementById("val-vibrance");
+    const valSaturation = document.getElementById("val-saturation");
+    const wbSelect = document.getElementById("wb-select");
+
+    const lblActiveChannel = document.getElementById("lbl-active-channel");
+    const lblChHue = document.getElementById("lbl-ch-hue");
+    const lblChSat = document.getElementById("lbl-ch-sat");
+    const lblChLum = document.getElementById("lbl-ch-lum");
+    const slChHue = document.getElementById("sl-ch-hue");
+    const slChSat = document.getElementById("sl-ch-sat");
+    const slChLum = document.getElementById("sl-ch-lum");
+    const valChHue = document.getElementById("val-ch-hue");
+    const valChSat = document.getElementById("val-ch-sat");
+    const valChLum = document.getElementById("val-ch-lum");
+    const trackChHue = document.getElementById("track-ch-hue");
+    const trackChSat = document.getElementById("track-ch-sat");
+    const trackChLum = document.getElementById("track-ch-lum");
+
+    function toggleSection(id) {
+      document.getElementById(id).classList.toggle("collapsed");
+    }
+
+    // Swatches click
+    document.querySelectorAll(".swatch-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        document.querySelectorAll(".swatch-btn").forEach(b => b.classList.remove("active"));
+        btn.classList.add("active");
+        activeChannelIdx = parseInt(btn.dataset.channel, 10);
+        updateActiveChannelUI();
+      });
+    });
+
+    // Mode segments
+    document.querySelectorAll(".segment").forEach(seg => {
+      seg.addEventListener("click", () => {
+        document.querySelectorAll(".segment").forEach(s => s.classList.remove("active"));
+        seg.classList.add("active");
+        activeMode = seg.dataset.mode;
+        applyModeFilter();
+      });
+    });
+
+    function applyModeFilter() {
+      const rHue = document.getElementById("row-ch-hue");
+      const rSat = document.getElementById("row-ch-sat");
+      const rLum = document.getElementById("row-ch-lum");
+      rHue.style.display = (activeMode === "all" || activeMode === "hue") ? "flex" : "none";
+      rSat.style.display = (activeMode === "all" || activeMode === "sat") ? "flex" : "none";
+      rLum.style.display = (activeMode === "all" || activeMode === "lum") ? "flex" : "none";
+    }
+
+    function updateActiveChannelUI() {
+      const ch = CHANNELS[activeChannelIdx];
+      lblActiveChannel.textContent = ch.name + " Channel";
+      lblChHue.textContent = ch.name + " Hue";
+      lblChSat.textContent = ch.name + " Sat";
+      lblChLum.textContent = ch.name + " Lum";
+
+      trackChHue.style.background = ch.gradHue;
+      trackChSat.style.background = `linear-gradient(90deg, #666, ${ch.hex})`;
+      trackChLum.style.background = `linear-gradient(90deg, #111, ${ch.hex} 50%, #fff)`;
+
+      const cur = filters.mixer[activeChannelIdx];
+      slChHue.value = cur.hue;
+      valChHue.textContent = (cur.hue > 0 ? "+" : "") + cur.hue;
+
+      slChSat.value = cur.sat;
+      valChSat.textContent = (cur.sat > 0 ? "+" : "") + cur.sat;
+
+      slChLum.value = cur.lum;
+      valChLum.textContent = (cur.lum > 0 ? "+" : "") + cur.lum;
+    }
+
+    // Slider Listeners with double click reset
+    function setupSlider(input, valLabel, onChange) {
+      input.addEventListener("input", () => {
+        valLabel.textContent = (input.value > 0 ? "+" : "") + input.value;
+        onChange(parseFloat(input.value));
+        renderFilteredPreview();
+      });
+      input.addEventListener("dblclick", () => {
+        input.value = 0;
+        valLabel.textContent = "0";
+        onChange(0);
+        renderFilteredPreview();
+      });
+    }
+
+    setupSlider(slTemp, valTemp, v => filters.temp = v);
+    setupSlider(slTint, valTint, v => filters.tint = v);
+    setupSlider(slVibrance, valVibrance, v => filters.vibrance = v);
+    setupSlider(slSaturation, valSaturation, v => filters.saturation = v);
+
+    setupSlider(slChHue, valChHue, v => filters.mixer[activeChannelIdx].hue = v);
+    setupSlider(slChSat, valChSat, v => filters.mixer[activeChannelIdx].sat = v);
+    setupSlider(slChLum, valChLum, v => filters.mixer[activeChannelIdx].lum = v);
+
+    // White Balance Preset selector
+    wbSelect.addEventListener("change", () => {
+      const p = wbSelect.value;
+      if (p === "As Shot" || p === "Custom") return;
+      if (p === "Daylight") { slTemp.value = 10; slTint.value = 0; }
+      else if (p === "Cloudy") { slTemp.value = 25; slTint.value = 5; }
+      else if (p === "Shade") { slTemp.value = 40; slTint.value = 10; }
+      else if (p === "Tungsten") { slTemp.value = -45; slTint.value = -10; }
+      else if (p === "Fluorescent") { slTemp.value = -15; slTint.value = 25; }
+      else if (p === "Flash") { slTemp.value = 15; slTint.value = 5; }
+      else if (p === "Auto") { slTemp.value = 0; slTint.value = 0; }
+
+      filters.temp = parseFloat(slTemp.value);
+      filters.tint = parseFloat(slTint.value);
+      valTemp.textContent = (filters.temp > 0 ? "+" : "") + filters.temp;
+      valTint.textContent = (filters.tint > 0 ? "+" : "") + filters.tint;
+      renderFilteredPreview();
+    });
+
+    // Preset pills
+    document.querySelectorAll(".preset-pill").forEach(pill => {
+      pill.addEventListener("click", () => {
+        document.querySelectorAll(".preset-pill").forEach(p => p.classList.remove("active"));
+        pill.classList.add("active");
+        applyNamedPreset(pill.dataset.preset);
+      });
+    });
+
+    function applyNamedPreset(name) {
+      resetAllFilters();
+      if (name === "Warm Sunset") {
+        filters.temp = 25; filters.tint = 5; filters.vibrance = 25;
+        filters.mixer[1] = { hue: 10, sat: 35, lum: 5 }; // Orange
+        filters.mixer[5] = { hue: -5, sat: -20, lum: -5 }; // Blue
+      } else if (name === "Cool Film") {
+        filters.temp = -25; filters.tint = -5; filters.vibrance = 15;
+        filters.mixer[4] = { hue: 0, sat: 30, lum: 0 }; // Aqua
+        filters.mixer[5] = { hue: -10, sat: 25, lum: 5 }; // Blue
+      } else if (name === "Vivid Landscape") {
+        filters.vibrance = 35; filters.saturation = 10;
+        filters.mixer[3] = { hue: 5, sat: 40, lum: 10 }; // Green
+        filters.mixer[4] = { hue: 0, sat: 25, lum: 5 };  // Aqua
+        filters.mixer[5] = { hue: 0, sat: 35, lum: 0 };  // Blue
+      } else if (name === "Moody Teal") {
+        filters.temp = -15; filters.tint = 10; filters.vibrance = 10;
+        filters.mixer[1] = { hue: -10, sat: 20, lum: 0 }; // Orange
+        filters.mixer[4] = { hue: 0, sat: 30, lum: -10 }; // Aqua
+      } else if (name === "Clean Portrait") {
+        filters.temp = 5; filters.vibrance = 15;
+        filters.mixer[0] = { hue: 0, sat: 10, lum: 5 };   // Red
+        filters.mixer[1] = { hue: 5, sat: -5, lum: 10 };  // Orange
+      }
+      syncUIToFilters();
+      renderFilteredPreview();
+    }
+
+    function syncUIToFilters() {
+      slTemp.value = filters.temp; valTemp.textContent = (filters.temp > 0 ? "+" : "") + filters.temp;
+      slTint.value = filters.tint; valTint.textContent = (filters.tint > 0 ? "+" : "") + filters.tint;
+      slVibrance.value = filters.vibrance; valVibrance.textContent = (filters.vibrance > 0 ? "+" : "") + filters.vibrance;
+      slSaturation.value = filters.saturation; valSaturation.textContent = (filters.saturation > 0 ? "+" : "") + filters.saturation;
+      updateActiveChannelUI();
+    }
+
+    function resetAllFilters() {
+      filters.temp = 0; filters.tint = 0; filters.vibrance = 0; filters.saturation = 0;
+      for (let i = 0; i < 8; i++) {
+        filters.mixer[i] = { hue: 0, sat: 0, lum: 0 };
+      }
+      syncUIToFilters();
+      renderFilteredPreview();
+    }
+
+    document.getElementById("btn-reset").addEventListener("click", resetAllFilters);
+
+    // Compare original button (press and hold)
+    btnCompare.addEventListener("mousedown", () => {
+      isComparingOriginal = true;
+      if (originalImageData) ctx.putImageData(originalImageData, 0, 0);
+    });
+    window.addEventListener("mouseup", () => {
+      if (isComparingOriginal) {
+        isComparingOriginal = false;
+        renderFilteredPreview();
+      }
+    });
+
+    // Image processing pipeline (HSL Color Mixer + Vibrance)
+    function rgbToHsl(r, g, b) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r, g, b), min = Math.min(r, g, b);
+      let h, s, l = (max + min) / 2;
+      if (max === min) {
+        h = s = 0;
+      } else {
+        const d = max - min;
+        s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+        switch (max) {
+          case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+          case g: h = (b - r) / d + 2; break;
+          case b: h = (r - g) / d + 4; break;
+        }
+        h /= 6;
+      }
+      return [h * 360, s, l];
+    }
+
+    function hslToRgb(h, s, l) {
+      h = ((h % 360) + 360) % 360 / 360;
+      let r, g, b;
+      if (s === 0) {
+        r = g = b = l;
+      } else {
+        const hue2rgb = (p, q, t) => {
+          if (t < 0) t += 1;
+          if (t > 1) t -= 1;
+          if (t < 1/6) return p + (q - p) * 6 * t;
+          if (t < 1/2) return q;
+          if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+          return p;
+        };
+        const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+        const p = 2 * l - q;
+        r = hue2rgb(p, q, h + 1/3);
+        g = hue2rgb(p, q, h);
+        b = hue2rgb(p, q, h - 1/3);
+      }
+      return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+    }
+
+    function angularDist(a, b) {
+      let d = Math.abs(a - b) % 360;
+      return d > 180 ? 360 - d : d;
+    }
+
+    function smoothstep(edge0, edge1, x) {
+      const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+      return t * t * (3 - 2 * t);
+    }
+
+    function renderFilteredPreview() {
+      if (!originalImageData || isComparingOriginal) return;
+
+      const src = originalImageData.data;
+      const dstImg = ctx.createImageData(originalImageData.width, originalImageData.height);
+      const dst = dstImg.data;
+      const len = src.length;
+
+      const tTemp = filters.temp / 100;
+      const tTint = filters.tint / 100;
+      const tVib = filters.vibrance / 100;
+      const tSat = filters.saturation / 100;
+
+      // Pre-extract mixer deltas
+      const mixerActive = filters.mixer.some(m => m.hue !== 0 || m.sat !== 0 || m.lum !== 0);
+
+      for (let i = 0; i < len; i += 4) {
+        let r = src[i];
+        let g = src[i+1];
+        let b = src[i+2];
+        const a = src[i+3];
+
+        if (a === 0) {
+          dst[i] = r; dst[i+1] = g; dst[i+2] = b; dst[i+3] = 0;
+          continue;
+        }
+
+        // 1. Temp & Tint
+        if (tTemp !== 0) {
+          r = Math.min(255, Math.max(0, r + tTemp * 38));
+          b = Math.min(255, Math.max(0, b - tTemp * 38));
+        }
+        if (tTint !== 0) {
+          g = Math.min(255, Math.max(0, g - tTint * 32));
+          r = Math.min(255, Math.max(0, r + tTint * 16));
+          b = Math.min(255, Math.max(0, b + tTint * 16));
+        }
+
+        // Convert to HSL
+        let [h, s, l] = rgbToHsl(r, g, b);
+
+        // 2. 8-channel Color Mixer with smooth angular interpolation
+        if (mixerActive && s > 0.04) {
+          let deltaH = 0, deltaS = 0, deltaL = 0, weightSum = 0;
+          for (let c = 0; c < 8; c++) {
+            const chHue = CHANNELS[c].hue;
+            const dist = angularDist(h, chHue);
+            if (dist < 45) {
+              const w = 1.0 - smoothstep(0, 45, dist);
+              weightSum += w;
+              deltaH += (filters.mixer[c].hue / 100) * 30 * w;
+              deltaS += (filters.mixer[c].sat / 100) * w;
+              deltaL += (filters.mixer[c].lum / 100) * 0.5 * w;
+            }
+          }
+          if (weightSum > 0.001) {
+            h = (h + deltaH / weightSum + 360) % 360;
+            s = Math.max(0, Math.min(1, s + (deltaS / weightSum) * s));
+            l = Math.max(0, Math.min(1, l + (deltaL / weightSum)));
+          }
+        }
+
+        // 3. Vibrance (boosts low-saturation pixels more)
+        if (tVib !== 0) {
+          const boost = (1.0 - s) * tVib;
+          s = Math.max(0, Math.min(1, s + s * boost));
+        }
+
+        // 4. Global Saturation
+        if (tSat !== 0) {
+          s = Math.max(0, Math.min(1, s + (tSat > 0 ? (1 - s) * tSat : s * tSat)));
+        }
+
+        const [nr, ng, nb] = hslToRgb(h, s, l);
+        dst[i] = nr;
+        dst[i+1] = ng;
+        dst[i+2] = nb;
+        dst[i+3] = a;
+      }
+
+      ctx.putImageData(dstImg, 0, 0);
+    }
+
+    // Communication with Figma sandbox
+    window.onmessage = async (event) => {
+      const msg = event.data.pluginMessage;
+      if (!msg) return;
+
+      if (msg.type === "SELECTION_CHANGED") {
+        if (!msg.hasImage) {
+          currentNodeId = null;
+          statusDot.className = "status-indicator inactive";
+          statusText.textContent = msg.message || "Select an image layer";
+          previewEmpty.style.display = "block";
+          previewEmpty.textContent = msg.message || "Select an image or shape with image fill in Figma to edit";
+          canvas.style.display = "none";
+          btnCompare.style.display = "none";
+          originalImageData = null;
+        } else {
+          currentNodeId = msg.nodeId;
+          statusDot.className = "status-indicator";
+          statusText.textContent = msg.nodeName || "Image Layer";
+          previewEmpty.style.display = "none";
+          canvas.style.display = "block";
+          btnCompare.style.display = "block";
+
+          // Load image bytes into Canvas
+          const blob = new Blob([msg.imageBytes], { type: "image/png" });
+          const img = new Image();
+          img.src = URL.createObjectURL(blob);
+          await img.decode();
+
+          // Limit canvas resolution for fast 60fps interaction
+          const maxDim = 600;
+          let w = img.width, h = img.height;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) { h = Math.round((h * maxDim) / w); w = maxDim; }
+            else { w = Math.round((w * maxDim) / h); h = maxDim; }
+          }
+
+          canvas.width = w;
+          canvas.height = h;
+          ctx.drawImage(img, 0, 0, w, h);
+          originalImageData = ctx.getImageData(0, 0, w, h);
+
+          // Restore saved settings if node was previously edited
+          if (msg.savedSettings) {
+            filters = msg.savedSettings;
+            syncUIToFilters();
+          }
+
+          renderFilteredPreview();
+        }
+      }
+    };
+
+    // Apply to Figma Button
+    document.getElementById("btn-apply").addEventListener("click", () => {
+      if (!currentNodeId || !originalImageData) {
+        parent.postMessage({ pluginMessage: { type: "NOTIFY", text: "Please select an image layer first" } }, "*");
+        return;
+      }
+
+      canvas.toBlob((blob) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const arrayBuffer = reader.result;
+          parent.postMessage({
+            pluginMessage: {
+              type: "APPLY_IMAGE",
+              nodeId: currentNodeId,
+              bytes: new Uint8Array(arrayBuffer),
+              settings: filters
+            }
+          }, "*");
+        };
+        reader.readAsArrayBuffer(blob);
+      }, "image/png");
+    });
+
+    // Revert Button
+    document.getElementById("btn-restore").addEventListener("click", () => {
+      if (currentNodeId) {
+        parent.postMessage({ pluginMessage: { type: "RESTORE_ORIGINAL", nodeId: currentNodeId } }, "*");
+        resetAllFilters();
+      }
+    });
+
+    // Initialize UI
+    updateActiveChannelUI();
+  </script>
+</body>
+</html>
